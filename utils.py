@@ -24,7 +24,8 @@ def monthly_baselines(site, species, box):
     df_mf_baseline = pd.DataFrame(df_mf.resample("MS").quantile(0.1), columns=[(site, box, "mf"), ])
 
     df_repeatability = dataset.mf_repeatability.to_pandas()
-    df_repeatability = pd.DataFrame(df_repeatability.resample("MS").mean(), columns=[(site, box, "mf_repeatability"), ])
+    df_repeatability = pd.DataFrame(df_repeatability.resample("MS").mean(),
+                                    columns=[(site, box, "mf_repeatability"), ])
 
     df_variability = pd.DataFrame(df_mf.resample("MS").std(), columns=[(site, box, "mf_variability"), ])
 
