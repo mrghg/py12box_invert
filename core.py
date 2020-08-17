@@ -51,3 +51,17 @@ def flux_sensitivity(project_path, case, species):
             sensitivity[:, 4*mi + bi] = mf_perturbed.flatten() / mf_ref.flatten() / 1.
     
     return sensitivity
+
+
+
+
+if __name__ == "__main__":
+
+    from pathlib import Path
+    import matplotlib.pyplot as plt
+
+    H = flux_sensitivity(Path("/home/chxmr/code/py12box_invert/data/AGAGE"), "CFC-11", "CFC-11")
+
+    print(H[0, 0])
+
+    plt.plot(H[:, 0])
