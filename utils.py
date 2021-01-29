@@ -1,8 +1,9 @@
-from acrg.acrg_obs import get_single_site
+#from acrg.acrg_obs import get_single_site
 import xarray as xr
 import pandas as pd
 import py12box
 import numpy as np
+from py12box import setup, core
 
 
 def monthly_baselines(site, species, box):
@@ -93,7 +94,7 @@ def obs_read(species, project_path, case):
 
 
 def approx_initial_conditions(species, project_path, case,
-                              ic):
+                              ic0):
     """
     Spin up the model to approximate initial conditions
     
@@ -109,15 +110,13 @@ def approx_initial_conditions(species, project_path, case,
         Initial mole fraction at four surface boxes
     """
     
-    if len(ic) != 4:
+    if len(ic0) != 4:
         raise("Initial conditions must be 4 elements (surface boxes, ordered N - S)")
         
-    mol_mass, OH_A, OH_ER = setup.get_species_parameters(species)
-    time, emissions, ic, lifetime = setup.get_case_parameters(project_dir, case, species)
+    mol_mass, OH_A, OH_ER = py12box.setup.get_species_parameters(species)
+    time, emissions, ic, lifetime = py12box.setup.get_case_parameters(project_path, case, species)
     
-    
-    
-    i_t, i_v1, t, v1, OH, Cl, temperature = setup.get_model_parameters(int(len(time) / 12))
+    i_t, i_v1, t, v1, OH, Cl, temperature = py12box.setup.get_model_parameters(int(len(time) / 12))
     F = setup.transport_matrix(i_t, i_v1, t, v1)
 
     c_month, burden, emissions_out, losses, lifetimes = \
@@ -129,6 +128,8 @@ def approx_initial_conditions(species, project_path, case,
                    cl=Cl, oh=OH,
                    arr_oh = np.array([OH_A, OH_ER]))
     
+    #Take final spun up value and scale each semi-hemisphere to surface boxes.
+    return c_month[-1,:] * np.tile(ic0[:4]/c_month[-1,:4],3)
 
 def decimal_date(date):
     '''
