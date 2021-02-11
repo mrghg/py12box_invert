@@ -150,7 +150,7 @@ def run_inversion(project_path, case, species, ic0=None,  emissions_sd=None):
     H, y, R, P, x_a = utils.inversion_matrices(obs, sensitivity, mf_ref, obs_sd, emissions_sd)
     #Do inversion
     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P)
-    return x_hat, P_hat, emis_ref
+    return x_hat, P_hat, emis_ref, time
 
 if __name__ == "__main__":
 
