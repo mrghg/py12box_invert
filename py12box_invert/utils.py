@@ -1,7 +1,6 @@
 from acrg_obs import get_single_site
 import xarray as xr
 import pandas as pd
-#import py12box
 import numpy as np
 from py12box.py12box import startup, core
 from py12box_invert import core as invcore
@@ -10,18 +9,15 @@ def monthly_baselines(site, species, box):
     """
     Retrieve observations and return a dataframe of monthly baselines
 
-    Parameters
-    ----------
-    site : str
-        Site code
-    species: str
-        Species name
-    box: int
-        12-box model box number (0 - 11)
+        Parameters:
+            site (str)    : Three letter site code
+            species (str) : Species name
+            box (int)     :12-box model box number (0 - 11)
+        Returns:
+            Pandas dataframe of baselines
+            
+    TODO: This function needs moving into a different repo, as it requires ACRG repo
     """
-
-    #TODO: This function needs moving into a different repo, as it requires ACRG repo
-    
     dataset = xr.concat(get_single_site(site, species),
                         dim="time").sortby("time")
 
@@ -37,18 +33,16 @@ def monthly_baselines(site, species, box):
     return pd.concat([df_mf_baseline, df_repeatability, df_variability], axis=1, sort=True)
 
 
-def obs_write(species, project_path, case, sites=None):
+def obs_write(species, project_path, sites=None):
     """
     Write csv file containing monthly mean observations at each site
 
-    Parameters
-    ----------
-    species : str
-        Species string
-    project_path: pathlib path
-        Path to project
-    case: str
-        Case folder within project
+        Parameters:
+            species (str)              : Species name
+            project_path (pathlib path): Path to project
+            sites (dict)               : Dictionary of sites and their box
+        Returns:
+            None. Writes csv
     """
 
     if sites is None:
@@ -68,25 +62,21 @@ def obs_write(species, project_path, case, sites=None):
     df.index.name = None
     df.columns = pd.MultiIndex.from_tuples(df.columns, names=["site", "box", "var"])
 
-    df.to_csv(project_path / case / f"obs_{species}.csv")
+    df.to_csv(project_path / species / f"obs_{species}.csv")
 
 
-def obs_read(species, project_path, case):
+def obs_read(species, project_path):
     """
     Read csv file containing monthly mean observations at each site
 
-    Parameters
-    ----------
-    species : str
-        Species string
-    project_path: pathlib path
-        Path to project
-    case: str
-        Case folder within project
-
+        Parameters:
+            species (str)              : Species name
+            project_path (pathlib path): Path to project
+        Returns:
+            Pandas data frame
     """
 
-    df = pd.read_csv(project_path / case / f"obs_{species}.csv", header=[0, 1, 2],
+    df = pd.read_csv(project_path / species / f"obs_{species}.csv", header=[0, 1, 2],
                      skipinitialspace=True, index_col=0,
                      parse_dates=[0])
 
@@ -95,7 +85,13 @@ def obs_read(species, project_path, case):
 def obs_box(obsdf):
     """
     Box up obs data into surface boxes
-    Also returns measurement error as root-square-sum of measurment variability
+    
+        Parameters:
+            obsdf (dataframe): Pandas dataframe containing obs data
+        Returns:
+            mf_box (array)    : Array of boxed obs
+            mf_var_box (array): Array of boxed mole fraction variability
+    
     Q: Should I weight these by latitude?!
     Q: Currently more than one measurement in box then uncertatinty is higher – not really true.
     """
@@ -106,43 +102,24 @@ def obs_box(obsdf):
         mf_var_box[sb,:] = obsdf.xs("mf_variability",level="var", axis=1).xs(str(sb),level="box", axis=1).apply(np.square).apply(np.nansum, axis=1).apply(np.sqrt)
     return mf_box, mf_var_box
 
-def approx_initial_conditions(species, project_path, case,
-                              ic0):
+def approx_initial_conditions(species, project_path, ic0):
     """
     Spin up the model to approximate initial conditions
-    
-    Parameters
-    ----------
-    species : str
-        Species string
-    project_path: pathlib path
-        Path to project
-    case: str
-        Case folder within project
-    ic: list
-        Initial mole fraction at four surface boxes
+
+        Parameters:
+            species (str)              : Species name
+            project_path (pathlib path): Path to project
+            ic0 (array)                : Initial conditions for 4 surface boxes
+        Returns:
+            Array of approximates initial conditions for all boxess
     """
     
     if len(ic0) != 4:
         raise("Initial conditions must be 4 elements (surface boxes, ordered N - S)")
-        
-    #mol_mass, OH_A, OH_ER = py12box.setup.get_species_parameters(species)
-    #time, emissions, ic, lifetime = py12box.setup.get_case_parameters(project_path, case, species)
-    #i_t, i_v1, t, v1, OH, Cl, temperature = py12box.setup.get_model_parameters(int(len(time) / 12))
-    #F = setup.transport_matrix(i_t, i_v1, t, v1)
     
-    mod = invcore.fwd_model_inputs(project_path, case, species)
+    mod = invcore.fwd_model_inputs(project_path, species)
     mod.run(verbose=False)
     c_month = mod.mf
-
-#     c_month, burden, emissions_out, losses, lifetimes = \
-#         core.model(ic=ic, q=emissions,
-#                    mol_mass=mol_mass,
-#                    lifetime=lifetime,
-#                    F=F,
-#                    temp=temperature,
-#                    cl=Cl, oh=OH,
-#                    arr_oh = np.array([OH_A, OH_ER]))
     
     #Take final spun up value and scale each semi-hemisphere to surface boxes.
     return c_month[-1,:] * np.tile(ic0[:4]/c_month[-1,:4],3)
@@ -151,10 +128,10 @@ def decimal_date(date):
     '''
     Calculate decimal date from pandas DatetimeIndex
     
-    Parameters
-    ----------
-    date : pandas DatetimeIndex
-    
+        Parameters:
+            date (pandas DatetimeIndex): Dates to convert
+        Returns:
+            Array of decimal dates
     '''
     
     days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
@@ -163,8 +140,14 @@ def decimal_date(date):
 
 def adjust_emissions_time(time):
     """
-    Currently emissions date is not calendar months but 1/12th year fractions
+    Emissions date is not calendar months but 1/12th year fractions
     Adjust to align with calendar decimal years
+        
+        Parameters:
+            time (array): Decimal dates to adjust
+        Returns:
+            Array of decimal dates
+    
     """
     time_start = str(int(time[0]))+"-"+str(int(np.round((time[0]-int(time[0])+1./12.)*12.))).zfill(2)
     time_end = str(int(time[-1]))+"-"+str(int(np.round((time[-1]-int(time[-1])+1./12.)*12.))).zfill(2)
@@ -175,6 +158,17 @@ def adjust_emissions_time(time):
 def pad_obs(mf_box, mf_var_box, time,obstime):
     """
     Pad the obs data with NaNs to cover period covered by input emissions
+
+        Parameters:
+            mf_box (array)    : Array of boxed observations
+            mf_var_box (array): Array of boxed mole fraction variability
+            time (array)      : Decimal dates for emissions
+            obstime (array)   : Decimal dates for obs
+            
+         Returns:
+             obs (array)   : padded observations
+             obs_sd (array): padded observation error
+    
     """
     emis_time = adjust_emissions_time(time)
     obs_df = pd.DataFrame(index=obstime, data=mf_box.T,columns=["0","1","2","3"]).reindex(emis_time)
@@ -183,10 +177,25 @@ def pad_obs(mf_box, mf_var_box, time,obstime):
     obs_sd = obs_sd_df.values.flatten()
     return obs, obs_sd
 
-def inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd):
+def inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd=None):
     """
     Drop sensitivities to no observations and set up matrices
-    Prior uncertainty on emissions is hardwired to 100.
+    Prior uncertainty on emissions defaults to 100.
+    
+        Parameters:
+            obs (array)          : Array of boxed observations
+            sensitivity (array)  : Array of sensitivity to emissions
+            mf_ref (array)       : Array of reference run mole fraction
+            obs_sd (array)       : Observation error
+            P_sd (array, options): Std dev uncertainty in a priori emissions 
+                                   If not given then defaults to 100 Gg/box/yr
+            
+         Returns:
+             H (array)         : Sensitivity matrix
+             y (array)         : Deviation from a priori emissions
+             R (square matrix) : Model-measurement covariance matrix
+             P (square matrix) : Emissions covariance matrix
+             x_a (array)       : A priori deviation (defaults to zeros)
     """
     wh_obs = np.isfinite(obs)
     H = sensitivity[wh_obs,:]
