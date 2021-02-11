@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from py12box.py12box import startup, core,  model
+from py12box import startup, core,  model
 from tqdm import tqdm
 from py12box_invert import utils
+
 
 def fwd_model_inputs(project_path, species):
     """
@@ -16,6 +17,7 @@ def fwd_model_inputs(project_path, species):
     """
     mod = model.Model(species, project_path)
     return mod #time, ic, emissions, mol_mass, lifetime, F, temperature, cl, oh, oh_a, oh_er
+
 
 def flux_sensitivity(project_path, species, ic0=None, freq="monthly"):
     """
@@ -123,6 +125,7 @@ def inversion_analytical(y, H, x_a, R, P):
     P_hat = np.linalg.inv(H.T @ R_inv @ H + P_inv)
     return x_hat, P_hat
 
+
 def annual_means(x_hat, P_hat, emis_ref,  freq="monthly"):
     """
     Derive annual mean emissions from inversion output
@@ -164,6 +167,7 @@ def annual_means(x_hat, P_hat, emis_ref,  freq="monthly"):
             j+=1
     
     return x_out, x_sd_out
+
 
 def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="monthly"):
     """
