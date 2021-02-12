@@ -1,68 +1,8 @@
-from acrg_obs import get_single_site
 import xarray as xr
 import pandas as pd
 import numpy as np
-from py12box.py12box import startup, core
+from py12box import startup, core
 from py12box_invert import core as invcore
-
-def monthly_baselines(site, species, box):
-    """
-    Retrieve observations and return a dataframe of monthly baselines
-
-        Parameters:
-            site (str)    : Three letter site code
-            species (str) : Species name
-            box (int)     :12-box model box number (0 - 11)
-        Returns:
-            Pandas dataframe of baselines
-            
-    TODO: This function needs moving into a different repo, as it requires ACRG repo
-    """
-    dataset = xr.concat(get_single_site(site, species),
-                        dim="time").sortby("time")
-
-    df_mf = dataset.mf.to_pandas()
-    df_mf_baseline = pd.DataFrame(df_mf.resample("MS").quantile(0.1), columns=[(site, box, "mf"), ])
-
-    df_repeatability = dataset.mf_repeatability.to_pandas()
-    df_repeatability = pd.DataFrame(df_repeatability.resample("MS").mean(),
-                                    columns=[(site, box, "mf_repeatability"), ])
-
-    df_variability = pd.DataFrame(df_mf.resample("MS").std(), columns=[(site, box, "mf_variability"), ])
-
-    return pd.concat([df_mf_baseline, df_repeatability, df_variability], axis=1, sort=True)
-
-
-def obs_write(species, project_path, sites=None):
-    """
-    Write csv file containing monthly mean observations at each site
-
-        Parameters:
-            species (str)              : Species name
-            project_path (pathlib path): Path to project
-            sites (dict)               : Dictionary of sites and their box
-        Returns:
-            None. Writes csv
-    """
-
-    if sites is None:
-        sites = {0: ["MHD", "ZEP", "THD", "JFJ"],
-                 1: ["RPB"],
-                 2: ["SMO"],
-                 3: ["CGO"]}
-
-    data = []
-
-    for box in sites:
-        for site in sites[box]:
-            df_single_site = monthly_baselines(site, species, box)
-            data.append(df_single_site)
-
-    df = pd.concat(data, axis=1, sort=True)
-    df.index.name = None
-    df.columns = pd.MultiIndex.from_tuples(df.columns, names=["site", "box", "var"])
-
-    df.to_csv(project_path / species / f"obs_{species}.csv")
 
 
 def obs_read(species, project_path):

@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from py12box.py12box import startup, core,  model
+from py12box import startup, core,  model
 from tqdm import tqdm
 from py12box_invert import utils
+
 
 def fwd_model_inputs(project_path, species):
     """
@@ -16,6 +17,7 @@ def fwd_model_inputs(project_path, species):
     """
     mod = model.Model(species, project_path)
     return mod #time, ic, emissions, mol_mass, lifetime, F, temperature, cl, oh, oh_a, oh_er
+
 
 def flux_sensitivity(project_path, species, ic0=None, freq="monthly"):
     """
@@ -123,6 +125,7 @@ def inversion_analytical(y, H, x_a, R, P):
     P_hat = np.linalg.inv(H.T @ R_inv @ H + P_inv)
     return x_hat, P_hat
 
+
 def annual_means(x_hat, P_hat, emis_ref,  freq="monthly"):
     """
     Derive annual mean emissions from inversion output
@@ -192,9 +195,9 @@ def global_mf(sensitivity, x_hat, P_hat, mf_ref):
     return xmf_out, xmf_sd_out
 
 def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
+
     """
     Calculates linear predictor hemispheric mole fractions.
-    
         Parameters:
             sensitivity (array): Array of sensitivity to emissions
             x_hat (array)      : Posterior mean difference from a priori
@@ -218,6 +221,7 @@ def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
     xmf_Cov = sensitivity @ P_hat @ sensitivity.T
     N_ind = np.arange(len(xmf_hat))
     S_ind = np.arange(len(xmf_hat))
+
     for i in range(2):
         N_ind = np.delete(N_ind, np.arange(2,len(N_ind),4-i))
         S_ind = np.delete(S_ind, np.arange(0,len(S_ind),4-i))
@@ -270,4 +274,5 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
                                      "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
                                      "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
     return x_hat, P_hat, emis_ref, time, model_mf
+
 
