@@ -170,7 +170,6 @@ def annual_means(x_hat, P_hat, emis_ref,  freq="monthly"):
 
 
 def global_mf(sensitivity, x_hat, P_hat, mf_ref):
-
     """
         Calculates linear predictor global mole fractions.
     
@@ -192,14 +191,13 @@ def global_mf(sensitivity, x_hat, P_hat, mf_ref):
     for i in range(0,len(xmf_hat),48):
         xmf_sd_out[j] = np.sqrt(np.sum(xmf_Cov[i:(i+48),i:(i+48)])/12)
         j +=1
-
+        
     return xmf_out, xmf_sd_out
 
 def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
 
     """
     Calculates linear predictor hemispheric mole fractions.
-
         Parameters:
             sensitivity (array): Array of sensitivity to emissions
             x_hat (array)      : Posterior mean difference from a priori
@@ -223,7 +221,7 @@ def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
     xmf_Cov = sensitivity @ P_hat @ sensitivity.T
     N_ind = np.arange(len(xmf_hat))
     S_ind = np.arange(len(xmf_hat))
-    
+
     for i in range(2):
         N_ind = np.delete(N_ind, np.arange(2,len(N_ind),4-i))
         S_ind = np.delete(S_ind, np.arange(0,len(S_ind),4-i))
@@ -234,9 +232,8 @@ def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
         xmf_N_sd_out[j] = np.sqrt(np.sum(xmf_N_Cov[i:(i+24),i:(i+24)])/12)
         xmf_S_sd_out[j] = np.sqrt(np.sum(xmf_S_Cov[i:(i+24),i:(i+24)])/12)
         j +=1
-
+    
     return xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out
-
 
 def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="monthly"):
     """
@@ -251,10 +248,11 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
             freq (str, optional)         : Frequency to infer ("monthly", "quarterly", "yearly")
                                            Default is monthly.
         Returns:
-            x_hat (array)   : Posterior mean difference from a priori
-            P_hat (array)   : Posterior covariance matrix
-            emis_ref (array): Reference emissions
-            time (array)    : Decimal dates for emissions
+            x_hat (array)       : Posterior mean difference from a priori
+            P_hat (array)       : Posterior covariance matrix
+            emis_ref (array)    : Reference emissions
+            time (array)        : Decimal dates for emissions
+            model_mf (dataframe): Dataframe of inferred hemispheric and global mole fraction
     """
     #Get obs
     obsdf =  utils.obs_read(species, project_path)
@@ -269,6 +267,12 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
     H, y, R, P, x_a = utils.inversion_matrices(obs, sensitivity, mf_ref, obs_sd, emissions_sd)
     #Do inversion
     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P)
-    
-    return x_hat, P_hat, emis_ref, time
+    #Calculate global and hemispheric mole fraction
+    xmf_out, xmf_sd_out = global_mf(sensitivity, x_hat, P_hat, mf_ref)
+    xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out = hemis_mf(sensitivity, x_hat, P_hat, mf_ref)
+    model_mf = pd.DataFrame(index=time[::12], data={"Global_mf": xmf_out, "Global_mf_sd": xmf_sd_out, \
+                                     "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
+                                     "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
+    return x_hat, P_hat, emis_ref, time, model_mf
+
 
