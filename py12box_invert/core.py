@@ -172,127 +172,68 @@ def annual_means(x_hat, P_hat, emis_ref,  freq="monthly"):
 def global_mf(sensitivity, x_hat, P_hat, mf_ref):
 
     """
-
         Calculates linear predictor global mole fractions.
-
     
-
         Parameters:
-
             sensitivity (array): Array of sensitivity to emissions
-
             x_hat (array)      : Posterior mean difference from a priori
-
             P_hat (array)      : Posterior covariance matrix
-
             mf_array (array)   : Reference mole fraction
-
         Returns:
-
             xmf_out (array)   : Global mole fraction
-
             xmf_sd_out (array): Global mole fraction std dev
-
     """
-
     xmf_hat = sensitivity @ x_hat
-
     xmf_mnth = np.mean(xmf_hat.reshape(int(len(xmf_hat)/4),4)+ mf_ref.reshape(int(len(xmf_hat)/4),4), axis=1)
-
     xmf_out = np.mean(xmf_mnth.reshape(-1, 12), axis=1)
-
     xmf_sd_out = np.zeros(len(xmf_out))
-
     j = 0
-
     xmf_Cov = sensitivity @ P_hat @ sensitivity.T
-
     for i in range(0,len(xmf_hat),48):
-
         xmf_sd_out[j] = np.sqrt(np.sum(xmf_Cov[i:(i+48),i:(i+48)])/12)
-
         j +=1
 
-        
-
     return xmf_out, xmf_sd_out
-
 
 def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
 
     """
-
     Calculates linear predictor hemispheric mole fractions.
 
-    
-
         Parameters:
-
             sensitivity (array): Array of sensitivity to emissions
-
             x_hat (array)      : Posterior mean difference from a priori
-
             P_hat (array)      : Posterior covariance matrix
-
             mf_array (array)   : Reference mole fraction
-
         Returns:
-
             xmf_N_out (array)   : N Hemisphere mole fraction
-
             xmf_N_sd_out (array): N Hemisphere mole fraction std dev
-
             xmf_S_out (array)   : S Hemisphere mole fraction
-
             xmf_S_sd_out (array): S Hemisphere mole fraction std dev
-
     """
-
     xmf_hat = sensitivity @ x_hat
-
     xmf_N_mnth = np.mean(xmf_hat.reshape(int(len(xmf_hat)/4),4)[:,:1] + \
-
                          mf_ref.reshape(int(len(xmf_hat)/4),4)[:,:1], axis=1)
-
     xmf_S_mnth = np.mean(xmf_hat.reshape(int(len(xmf_hat)/4),4)[:,2:] + \
-
                          mf_ref.reshape(int(len(xmf_hat)/4),4)[:,2:], axis=1)
-
     xmf_N_out = np.mean(xmf_N_mnth.reshape(-1, 12), axis=1)
-
     xmf_S_out = np.mean(xmf_S_mnth.reshape(-1, 12), axis=1)
-
     xmf_N_sd_out = np.zeros(len(xmf_N_out))
-
     xmf_S_sd_out = np.zeros(len(xmf_S_out))
-
     xmf_Cov = sensitivity @ P_hat @ sensitivity.T
-
     N_ind = np.arange(len(xmf_hat))
-
     S_ind = np.arange(len(xmf_hat))
-
-    for i in range(2):
-
-        N_ind = np.delete(N_ind, np.arange(2,len(N_ind),4-i))
-
-        S_ind = np.delete(S_ind, np.arange(0,len(S_ind),4-i))
-
-    xmf_N_Cov = xmf_Cov[np.meshgrid(N_ind,N_ind)]
-
-    xmf_S_Cov = xmf_Cov[np.meshgrid(N_ind,N_ind)]
-
-    j = 0
-
-    for i in range(0,len(xmf_N_sd_out),24):
-
-        xmf_N_sd_out[j] = np.sqrt(np.sum(xmf_N_Cov[i:(i+24),i:(i+24)])/12)
-
-        xmf_S_sd_out[j] = np.sqrt(np.sum(xmf_S_Cov[i:(i+24),i:(i+24)])/12)
-
-        j +=1
-
     
+    for i in range(2):
+        N_ind = np.delete(N_ind, np.arange(2,len(N_ind),4-i))
+        S_ind = np.delete(S_ind, np.arange(0,len(S_ind),4-i))
+    xmf_N_Cov = xmf_Cov[np.meshgrid(N_ind,N_ind)]
+    xmf_S_Cov = xmf_Cov[np.meshgrid(N_ind,N_ind)]
+    j = 0
+    for i in range(0,len(xmf_N_sd_out),24):
+        xmf_N_sd_out[j] = np.sqrt(np.sum(xmf_N_Cov[i:(i+24),i:(i+24)])/12)
+        xmf_S_sd_out[j] = np.sqrt(np.sum(xmf_S_Cov[i:(i+24),i:(i+24)])/12)
+        j +=1
 
     return xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out
 
@@ -328,5 +269,6 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
     H, y, R, P, x_a = utils.inversion_matrices(obs, sensitivity, mf_ref, obs_sd, emissions_sd)
     #Do inversion
     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P)
+    
     return x_hat, P_hat, emis_ref, time
 
