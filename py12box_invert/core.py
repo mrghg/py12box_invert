@@ -273,6 +273,10 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
     model_mf = pd.DataFrame(index=time[::12], data={"Global_mf": xmf_out, "Global_mf_sd": xmf_sd_out, \
                                      "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
                                      "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
-    return x_hat, P_hat, emis_ref, time, model_mf
+    #Calculate annual emissions
+    x_out, x_sd_out = annual_means(x_hat, P_hat, emis_ref)
+    model_emis = pd.DataFrame(index=time[::12], data={"Global_emissions": x_out, \
+                                                      "Global_emissions_sd": xmf_sd_out})  
+    return model_emis, model_mf
 
 
