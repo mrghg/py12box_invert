@@ -117,34 +117,3 @@ def pad_obs(mf_box, mf_var_box, time,obstime):
     obs_sd = obs_sd_df.values.flatten()
     return obs, obs_sd
 
-def inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd=None):
-    """
-    Drop sensitivities to no observations and set up matrices
-    Prior uncertainty on emissions defaults to 100.
-    
-        Parameters:
-            obs (array)          : Array of boxed observations
-            sensitivity (array)  : Array of sensitivity to emissions
-            mf_ref (array)       : Array of reference run mole fraction
-            obs_sd (array)       : Observation error
-            P_sd (array, options): Std dev uncertainty in a priori emissions 
-                                   If not given then defaults to 100 Gg/box/yr
-            
-         Returns:
-             H (array)         : Sensitivity matrix
-             y (array)         : Deviation from a priori emissions
-             R (square matrix) : Model-measurement covariance matrix
-             P (square matrix) : Emissions covariance matrix
-             x_a (array)       : A priori deviation (defaults to zeros)
-    """
-    wh_obs = np.isfinite(obs)
-    H = sensitivity[wh_obs,:]
-    y = obs[wh_obs] - mf_ref[wh_obs]
-    R = np.diag(obs_sd[wh_obs]**2)
-    if not P_sd:
-        # If no emissions std is given default to 100 Gg/yr
-        print("Prior emissions uncertainty defaulting to 100 Gg/box/yr")
-        P_sd = np.ones(H.shape[1])*100
-    P = np.diag(P_sd**2)
-    x_a = np.zeros(H.shape[1])
-    return H, y, R, P, x_a

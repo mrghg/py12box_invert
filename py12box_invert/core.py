@@ -125,7 +125,6 @@ def inversion_analytical(y, H, x_a, R, P):
     P_hat = np.linalg.inv(H.T @ R_inv @ H + P_inv)
     return x_hat, P_hat
 
-
 def annual_means(x_hat, P_hat, emis_ref,  freq="monthly"):
     """
     Derive annual mean emissions from inversion output
@@ -225,8 +224,8 @@ def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
     for i in range(2):
         N_ind = np.delete(N_ind, np.arange(2,len(N_ind),4-i))
         S_ind = np.delete(S_ind, np.arange(0,len(S_ind),4-i))
-    xmf_N_Cov = xmf_Cov[np.meshgrid(N_ind,N_ind)]
-    xmf_S_Cov = xmf_Cov[np.meshgrid(N_ind,N_ind)]
+    xmf_N_Cov = xmf_Cov[tuple(np.meshgrid(N_ind,N_ind))]
+    xmf_S_Cov = xmf_Cov[tuple(np.meshgrid(N_ind,N_ind))]
     j = 0
     for i in range(0,len(xmf_N_sd_out),24):
         xmf_N_sd_out[j] = np.sqrt(np.sum(xmf_N_Cov[i:(i+24),i:(i+24)])/12)
@@ -235,7 +234,35 @@ def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
     
     return xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out
 
-def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="monthly"):
+def inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd):
+    """
+    Drop sensitivities to no observations and set up matrices
+    Prior uncertainty on emissions defaults to 100.
+    
+        Parameters:
+            obs (array)          : Array of boxed observations
+            sensitivity (array)  : Array of sensitivity to emissions
+            mf_ref (array)       : Array of reference run mole fraction
+            obs_sd (array)       : Observation error
+            P_sd (array, options): Std dev uncertainty in % of a priori emissions 
+                                   Defaults to 100% and min. of 1 Gg/box/yr
+            
+         Returns:
+             H (array)         : Sensitivity matrix
+             y (array)         : Deviation from a priori emissions
+             R (square matrix) : Model-measurement covariance matrix
+             P (square matrix) : Emissions covariance matrix
+             x_a (array)       : A priori deviation (defaults to zeros)
+    """
+    wh_obs = np.isfinite(obs)
+    H = sensitivity[wh_obs,:]
+    y = obs[wh_obs] - mf_ref[wh_obs]
+    R = np.diag(obs_sd[wh_obs]**2)
+    P = np.diag(P_sd**2)
+    x_a = np.zeros(H.shape[1])
+    return H, y, R, P, x_a
+
+def run_inversion(project_path, species, ic0=None,  emissions_sd=1., freq="monthly"):
     """
     Run inversion for 12-box model to estimate monthly means from 4 surface boxes.
     
@@ -243,8 +270,8 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
             project_path (pathlib path)  : Path to project
             species (str)                : Species name
             ic0 (array)                  : Initial conditions for 4 surface boxes
-            emissions_sd (array, options): Std dev uncertainty in a priori emissions 
-                                           If not given then defaults to 100 Gg/box/yr
+            emissions_sd (array, options): Std dev uncertainty in % of a priori emissions 
+                                           Defaults to 100%, and minimum of 10 Gg/box/yr
             freq (str, optional)         : Frequency to infer ("monthly", "quarterly", "yearly")
                                            Default is monthly.
         Returns:
@@ -264,7 +291,10 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
     # Pad obs to senstivity
     obs, obs_sd = utils.pad_obs(mf_box, mf_var_box, time, obstime)
     #Get matrices for inversion 
-    H, y, R, P, x_a = utils.inversion_matrices(obs, sensitivity, mf_ref, obs_sd, emissions_sd)
+    meanfreq={"monthly":1, "quarterly":3, "yearly":12}
+    P_sd = emissions_sd*emis_ref.T.reshape(-1,meanfreq[freq]).mean(1).reshape(4,-1).T.flatten()
+    P_sd[P_sd < 10.] = 10.
+    H, y, R, P, x_a = inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd)
     #Do inversion
     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P)
     #Calculate global and hemispheric mole fraction
@@ -276,7 +306,7 @@ def run_inversion(project_path, species, ic0=None,  emissions_sd=None, freq="mon
     #Calculate annual emissions
     x_out, x_sd_out = annual_means(x_hat, P_hat, emis_ref)
     model_emis = pd.DataFrame(index=time[::12], data={"Global_emissions": x_out, \
-                                                      "Global_emissions_sd": xmf_sd_out})  
+                                                      "Global_emissions_sd": x_sd_out})  
     return model_emis, model_mf
 
 
