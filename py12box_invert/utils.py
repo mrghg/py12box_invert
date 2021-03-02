@@ -3,22 +3,26 @@ import pandas as pd
 import numpy as np
 from py12box import startup, core
 from py12box_invert import core as invcore
+import glob
 
 
-def obs_read(species, project_path):
+def obs_read(obs_path):
     """
     Read csv file containing monthly mean observations at each site
 
         Parameters:
-            species (str)              : Species name
-            project_path (pathlib path): Path to project
+            obs_path (pathlib path): Path to obs file
         Returns:
             Pandas data frame
     """
-
-    df = pd.read_csv(project_path / species / f"obs_{species}.csv", header=[0, 1, 2],
-                     skipinitialspace=True, index_col=0,
-                     parse_dates=[0])
+    if "agage" in str(obs_path):
+        df = pd.read_csv(obs_path, header=[0, 1, 2,3,4],
+                         skipinitialspace=True, index_col=0,
+                         parse_dates=[0], comment="#")
+    else: 
+        df = pd.read_csv(obs_path, header=[0, 1, 2],
+                      skipinitialspace=True, index_col=0,
+                      parse_dates=[0])
 
     return df
 
