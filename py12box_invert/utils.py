@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 from py12box import startup, core
 from py12box_invert import core as invcore
-import glob
+import matplotlib.pyplot as plt
+from pathlib import Path
 
 
 def obs_read(obs_path):
@@ -121,3 +122,85 @@ def pad_obs(mf_box, mf_var_box, time,obstime):
     obs_sd = obs_sd_df.values.flatten()
     return obs, obs_sd
 
+def plot_emissions(model_emissions, species, savepath=None, MCMC=False):
+    """
+    Plot emissions from analytical inversion
+    """
+    plt.figure()
+    plt.plot(model_emissions.index, model_emissions.Global_emissions)
+    if MCMC:
+        plt.fill_between(model_emissions.index, 
+                         model_emissions.Global_emissions_16,
+                         model_emissions.Global_emissions_84, alpha=0.5)
+        upy = np.max(model_emissions.Global_emissions_84)
+    else:
+        plt.fill_between(model_emissions.index,  
+                         model_emissions.Global_emissions-model_emissions.Global_emissions_sd,
+                         model_emissions.Global_emissions+model_emissions.Global_emissions_sd, alpha=0.5)
+        upy = np.max(model_emissions.Global_emissions+model_emissions.Global_emissions_sd)
+    plt.xlabel("Date")
+    plt.xlim(1980,2020)
+    plt.ylim(0, np.ceil(upy))
+    plt.ylabel(species+" emissions Gg/yr")
+    if savepath:
+        savedir = savepath / "emissions" / "plots"
+        if not savedir.exists():
+            savedir.mkdir(parents=True)
+        for ext in [".pdf"]:
+            savename = species+"_emissions_"+str(pd.to_datetime("today"))[:10]+ext
+            plt.savefig( savedir / savename, dpi=200)
+    plt.close()
+        
+def plot_mf(model_mf, species, savepath=None):
+    """
+    Plot Global and hemispheric mole fractions, from analytical inversion
+    """
+    plt.figure()
+    plt.plot(model_mf.index, model_mf.Global_mf, label="Global")
+    plt.plot(model_mf.index, model_mf.N_mf, label="N-Hemisphere")
+    plt.plot(model_mf.index, model_mf.S_mf, label="S-Hemisphere")
+    plt.legend()
+    plt.ylabel("ppt")
+    plt.xlabel("Date")
+    plt.xlim(1980,2020)
+    if savepath:
+        savedir = savepath / "molefraction" / "plots"
+        if not savedir.exists():
+            savedir.mkdir(parents=True)
+        for ext in [".pdf"]:
+            savename = species+"_mf_"+str(pd.to_datetime("today"))[:10]+ext
+            plt.savefig( savedir / savename , dpi=200)
+    plt.close()
+    
+def mf_to_csv(savepath, model_mf, species, comment=None):
+    """
+    Write Global and hemispheric mole fractions to csv
+    """
+    savedir = savepath / "molefraction" / "csv"
+    if not savedir.exists():
+        savedir.mkdir(parents=True)
+    savename = species+"_mf_"+str(pd.to_datetime("today"))[:10]+".csv"
+    f = open(savedir / savename, 'w')
+    if comment is not None:
+        if "\n" not in comment[-4:]:
+            comment += "\n"
+        f.write(comment)
+    model_mf.to_csv(f)
+    f.close()
+    
+def emissions_to_csv(savepath, model_emissions, species, comment=None):
+    """
+    Write emissions to csv 
+    
+    """
+    savedir = savepath / "emissions" / "csv"
+    if not savedir.exists():
+        savedir.mkdir(parents=True)
+    savename = species+"_emissions_"+str(pd.to_datetime("today"))[:10]+".csv"
+    f = open(savedir / savename, 'w')
+    if comment is not None:
+        if "\n" not in comment[-4:]:
+            comment += "\n"
+        f.write(comment)
+    model_emissions.to_csv(f)
+    f.close()
