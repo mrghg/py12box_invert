@@ -187,6 +187,7 @@ def global_mf(sensitivity, x_hat, P_hat, mf_ref):
             xmf_out (array)   : Global mole fraction
             xmf_sd_out (array): Global mole fraction std dev
     """
+    
     xmf_hat = sensitivity @ x_hat
     xmf_mnth = np.mean(xmf_hat.reshape(int(len(xmf_hat)/4),4)+ mf_ref.reshape(int(len(xmf_hat)/4),4), axis=1)
     xmf_out = np.mean(xmf_mnth.reshape(-1, 12), axis=1)
@@ -214,6 +215,7 @@ def hemis_mf(sensitivity, x_hat, P_hat, mf_ref):
             xmf_S_out (array)   : S Hemisphere mole fraction
             xmf_S_sd_out (array): S Hemisphere mole fraction std dev
     """
+
     xmf_hat = sensitivity @ x_hat
     xmf_N_mnth = np.mean(xmf_hat.reshape(int(len(xmf_hat)/4),4)[:,:1] + \
                          mf_ref.reshape(int(len(xmf_hat)/4),4)[:,:1], axis=1)
@@ -260,12 +262,19 @@ def inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd, emis0):
              P (square matrix) : Emissions covariance matrix
              x_a (array)       : A priori deviation (defaults to zeros)
     """
+
     wh_obs = np.isfinite(obs)
+    
     H = sensitivity[wh_obs,:]
+    
     y = obs[wh_obs] - mf_ref[wh_obs]
+    
     R = np.diag(obs_sd[wh_obs]**2)
+    
     P_inv = np.linalg.inv(np.diag(P_sd**2))
+    
     x_a = emis0
+    
     return H, y, R, P_inv, x_a
 
 
@@ -294,6 +303,7 @@ def run_inversion(project_path, species, obs_path=None, ic0=None,
             model_mf (dataframe)         : Dataframe of inferred hemispheric and global mole fraction.
             model_emis (dataframe)       : Dataframe of inferred global emissions.
     """
+
     #Get obs
     if not obs_path and not (project_path / f"{species}_obs.csv").exists():
         raise Exception("No obs file given.")
@@ -302,12 +312,16 @@ def run_inversion(project_path, species, obs_path=None, ic0=None,
         
     obsdf =  utils.obs_read(obs_path)
     obstime = utils.decimal_date(obsdf.index)
+
     #Box obs
     mf_box, mf_var_box = utils.obs_box(obsdf)
+    
     #Get sensitivities
     sensitivity, mf_ref, emis_ref, time, emis0 = flux_sensitivity(project_path, species, ic0=ic0, freq=freq)
+
     # Pad obs to senstivity
     obs, obs_sd = utils.pad_obs(mf_box, mf_var_box, time, obstime)
+    
     #Get matrices for inversion 
     P_sd = emissions_sd*emis0
     P_sd[P_sd < 10.] = 10.
@@ -326,8 +340,10 @@ def analytical_gaussian(y, H, x_a, R, P_inv, sensitivity, mf_ref, emis_ref, freq
     """
     Do an analytical Gaussian inversion, assuming conjugacy (Gaussian likelihood and prior)
     """
+
     #Do inversion
     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P_inv)
+    
     #Calculate global and hemispheric mole fraction
     xmf_out, xmf_sd_out = global_mf(sensitivity, x_hat, P_hat, mf_ref)
     xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out = hemis_mf(sensitivity, x_hat, P_hat, mf_ref)
@@ -336,10 +352,12 @@ def analytical_gaussian(y, H, x_a, R, P_inv, sensitivity, mf_ref, emis_ref, freq
                             data={"Global_mf": xmf_out, "Global_mf_sd": xmf_sd_out, \
                                     "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
                                     "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
+    
     #Calculate annual emissions
     x_out, x_sd_out = annual_means(x_hat, P_hat, emis_ref, freq=freq)
     model_emis = pd.DataFrame(index=index, data={"Global_emissions": x_out, \
                                                               "Global_emissions_sd": x_sd_out})  
+    
     return model_emis, model_mf
 
 
