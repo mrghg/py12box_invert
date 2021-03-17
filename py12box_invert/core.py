@@ -309,12 +309,12 @@ def run_inversion(project_path, species, obs_path=None, ic0=None,
         raise Exception("No obs file given.")
     elif (project_path / f"{species}_obs.csv").exists():
         obs_path = project_path / f"{species}_obs.csv"
-        
-    obsdf =  utils.obs_read(obs_path)
-    obstime = utils.decimal_date(obsdf.index)
+    
+    obstime, mf_box, mf_var_box =  utils.obs_read(obs_path)
+#    obstime = utils.decimal_date(obsdf.index)
 
     #Box obs
-    mf_box, mf_var_box = utils.obs_box(obsdf)
+#    mf_box, mf_var_box = utils.obs_box(obsdf)
     
     #Get sensitivities
     sensitivity, mf_ref, emis_ref, time, emis0 = flux_sensitivity(project_path, species, ic0=ic0, freq=freq)
@@ -322,7 +322,7 @@ def run_inversion(project_path, species, obs_path=None, ic0=None,
     # Pad obs to senstivity
     obs, obs_sd = utils.pad_obs(mf_box, mf_var_box, time, obstime)
     
-    #Get matrices for inversion 
+    #Get matrices for inversion
     P_sd = emissions_sd*emis0
     P_sd[P_sd < 10.] = 10.
     H, y, R, P_inv, x_a = inversion_matrices(obs, sensitivity, mf_ref, obs_sd, P_sd, emis0)

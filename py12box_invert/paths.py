@@ -1,6 +1,6 @@
-from pathlib import Path
+from pathlib import Path as _Pth
 
 class Paths:
 
-    data=Path(__file__).parents[1] / "data"
+    data=_Pth(__file__).parents[1] / "data"
     

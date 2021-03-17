@@ -7,46 +7,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-def obs_read(obs_path):
-    """
-    Read csv file containing monthly mean observations at each site
-
-        Parameters:
-            obs_path (pathlib path): Path to obs file
-        Returns:
-            Pandas data frame
-    """
-    if "agage" in str(obs_path):
-        df = pd.read_csv(obs_path, header=[0, 1, 2,3,4],
-                         skipinitialspace=True, index_col=0,
-                         parse_dates=[0], comment="#")
-    else: 
-        df = pd.read_csv(obs_path, header=[0, 1, 2],
-                      skipinitialspace=True, index_col=0,
-                      parse_dates=[0])
-
-    return df
-
-def obs_box(obsdf):
-    """
-    Box up obs data into surface boxes
-    
-        Parameters:
-            obsdf (dataframe): Pandas dataframe containing obs data
-        Returns:
-            mf_box (array)    : Array of boxed obs
-            mf_var_box (array): Array of boxed mole fraction variability
-    
-    Q: Should I weight these by latitude?!
-    Q: Currently more than one measurement in box then uncertatinty is higher – not really true.
-    """
-    mf_box = np.zeros((4, len(obsdf.index))) 
-    mf_var_box = np.zeros((4, len(obsdf.index))) 
-    for sb in range(4):
-        mf_box[sb,:] = obsdf.xs("mf",level="var", axis=1).xs(str(sb),level="box", axis=1).mean(axis=1, skipna=True)
-        mf_var_box[sb,:] = obsdf.xs("mf_variability",level="var", axis=1).xs(str(sb),level="box", axis=1).apply(np.square).apply(np.nansum, axis=1).apply(np.sqrt)
-    return mf_box, mf_var_box
-
 def approx_initial_conditions(species, project_path, ic0):
     """
     Spin up the model to approximate initial conditions
@@ -79,6 +39,9 @@ def decimal_date(date):
             Array of decimal dates
     '''
     
+    if len(date) == 1:
+        raise Exception("Expecting multiple values")
+
     days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
     
     return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
