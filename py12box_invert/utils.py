@@ -29,6 +29,7 @@ def approx_initial_conditions(species, project_path, ic0):
     #Take final spun up value and scale each semi-hemisphere to surface boxes.
     return c_month[-1,:] * np.tile(ic0[:4]/c_month[-1,:4],3)
 
+
 def decimal_date(date):
     '''
     Calculate decimal date from pandas DatetimeIndex
@@ -45,6 +46,7 @@ def decimal_date(date):
     days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
     
     return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
+
 
 def adjust_emissions_time(time):
     """
@@ -85,6 +87,7 @@ def pad_obs(mf_box, mf_var_box, time,obstime):
     obs_sd = obs_sd_df.values.flatten()
     return obs, obs_sd
 
+
 def plot_emissions(model_emissions, species, savepath=None, MCMC=False):
     """
     Plot emissions from analytical inversion
@@ -113,7 +116,8 @@ def plot_emissions(model_emissions, species, savepath=None, MCMC=False):
             savename = species+"_emissions_"+str(pd.to_datetime("today"))[:10]+ext
             plt.savefig( savedir / savename, dpi=200)
     plt.close()
-        
+
+
 def plot_mf(model_mf, species, savepath=None):
     """
     Plot Global and hemispheric mole fractions, from analytical inversion
@@ -134,7 +138,8 @@ def plot_mf(model_mf, species, savepath=None):
             savename = species+"_mf_"+str(pd.to_datetime("today"))[:10]+ext
             plt.savefig( savedir / savename , dpi=200)
     plt.close()
-    
+
+
 def mf_to_csv(savepath, model_mf, species, comment=None):
     """
     Write Global and hemispheric mole fractions to csv
@@ -150,7 +155,8 @@ def mf_to_csv(savepath, model_mf, species, comment=None):
         f.write(comment)
     model_mf.to_csv(f)
     f.close()
-    
+
+
 def emissions_to_csv(savepath, model_emissions, species, comment=None):
     """
     Write emissions to csv 
