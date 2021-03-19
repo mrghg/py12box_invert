@@ -20,8 +20,8 @@ def test_sensitivity():
     sens_mo = inv.sensitivity.copy()
 
     # Check number of columns is correct
-    assert len(sens_mo[0,:])/12 == len(sens_yr)
-    assert len(sens_qu[0,:])/3 == len(sens_yr)
+    assert int(len(sens_mo[0,:])/12) == len(sens_yr[0, :])
+    assert int(len(sens_qu[0,:])/4) == len(sens_yr[0, :])
 
     # Check number of rows are consistent
     assert len(sens_yr[:, 0]) == len(sens_mo[:, 0])
@@ -41,3 +41,14 @@ def test_sensitivity():
     assert sens_yr[-1, -1] > 0.
     assert np.isclose(sens_qu[-3*4-1, -1], 0.)
     assert sens_qu[-1, -1] > 0.
+
+    # Test that monthly, quarterly, annual sensitivites sum to same values
+    sens_yr_boxed = np.reshape(sens_yr, 
+                                (int(sens_yr.shape[0]/4), 4, int(sens_yr.shape[1]/4), 4))
+    # Create a 5th axis containing a monthly or seasonal mean and then sum over it to annualise
+    sens_qu_boxed_averaged = np.reshape(sens_qu,
+                                (int(sens_qu.shape[0]/4), 4, int(sens_qu.shape[1]/4/4), 4, 4)).sum(axis=3)
+    sens_mo_boxed_averaged = np.reshape(sens_mo,
+                                (int(sens_mo.shape[0]/4), 4, int(sens_mo.shape[1]/4/12), 12, 4)).sum(axis=3)
+    assert np.allclose(sens_yr_boxed, sens_qu_boxed_averaged)
+    assert np.allclose(sens_yr_boxed, sens_mo_boxed_averaged)

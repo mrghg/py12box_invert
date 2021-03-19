@@ -58,8 +58,11 @@ class Invert:
             Parameters:
                 freq (str, optional)       : Frequency to infer ("monthly", "quarterly", "yearly")
                                             Default is monthly.
-            Returns:
+            Attributes:
                 Linear sensitivity to emissions
+                Note that self.sensitivity can be reshaped using:
+                np.reshape(sens, (int(sens.shape[0]/4), 4, int(sens.shape[1]/4), 4))
+                where the dimensions are then [mf_time, mf_box, flux_time, flux_box]
 
         """
 
@@ -94,6 +97,8 @@ class Invert:
                 
                 # Store sensitivity column
                 self.sensitivity[:, 4*ti + bi] = (self.mod.mf[:,:4].flatten() - self.mod_prior.mf[:,:4].flatten()) / 1.
+
+        # Sensitivities can be reshaped using:
 
 
 
