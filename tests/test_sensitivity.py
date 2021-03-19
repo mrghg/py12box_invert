@@ -3,20 +3,22 @@ from py12box_invert.obs import Obs
 from py12box_invert.invert import Invert
 import numpy as np
 
+
 species = "CFC-11"
 project_path = Paths.data / f"example/{species}"
 
 inv = Invert(project_path, species)
 
+
 def test_sensitivity():
 
-    inv.flux_sensitivity(freq="yearly")
+    inv.run_sensitivity(freq="yearly")
     sens_yr = inv.sensitivity.copy()
 
-    inv.flux_sensitivity(freq="quarterly")
+    inv.run_sensitivity(freq="quarterly")
     sens_qu = inv.sensitivity.copy()
 
-    inv.flux_sensitivity(freq="monthly")
+    inv.run_sensitivity(freq="monthly")
     sens_mo = inv.sensitivity.copy()
 
     # Check number of columns is correct

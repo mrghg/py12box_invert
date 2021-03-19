@@ -1,6 +1,7 @@
 import numpy as np
 from copy import deepcopy
 from tqdm import tqdm
+from bisect import bisect
 
 from py12box_invert.obs import Obs
 from py12box.model import Model
@@ -27,7 +28,10 @@ class Prior_model:
 class Invert:
 
     def __init__(self, project_path, species,
-                        obs_path=None, ic0=None, 
+                        obs_path=None, 
+                        start_year = None,
+                        end_year = None,
+                        ic0=None, 
                         emissions_sd=1., freq="monthly", MCMC=False,
                         nit=10000, tune=None, burn=None):
         
@@ -38,10 +42,10 @@ class Invert:
         elif (project_path / f"{species}_obs.csv").exists():
             obs_path = project_path / f"{species}_obs.csv"
         
-        self.obs = Obs(obs_path)
+        self.obs = Obs(obs_path, start_year=start_year)
         
         # Get model inputs
-        self.mod = Model(species, project_path)
+        self.mod = Model(species, project_path, start_year=start_year)
 
         # Reference run
         print("Model reference run...")
@@ -51,7 +55,7 @@ class Invert:
         self.mod_prior = Prior_model(self.mod)
 
 
-    def flux_sensitivity(self, freq="monthly"):
+    def run_sensitivity(self, freq="monthly"):
         """
         Derive linear yearly flux sensitivities
         
@@ -97,9 +101,6 @@ class Invert:
                 
                 # Store sensitivity column
                 self.sensitivity[:, 4*ti + bi] = (self.mod.mf[:,:4].flatten() - self.mod_prior.mf[:,:4].flatten()) / 1.
-
-        # Sensitivities can be reshaped using:
-
 
 
     # # # Pad obs to senstivity
