@@ -43,7 +43,9 @@ class Invert:
             obs_path = project_path / f"{species}_obs.csv"
         
         self.obs = Obs(obs_path, start_year=start_year)
-        
+
+        #TODO: Somewhere around here, align times for model and obs arrays
+
         # Get model inputs
         self.mod = Model(species, project_path, start_year=start_year)
 

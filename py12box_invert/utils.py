@@ -39,13 +39,30 @@ def decimal_date(date):
         Returns:
             Array of decimal dates
     '''
-    
-    if len(date) == 1:
-        raise Exception("Expecting multiple values")
+
+    if not isinstance(date, pd.DatetimeIndex):
+        raise Exception("Expecting pandas.DatetimeIndex")
 
     days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
     
     return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
+
+
+def round_date(date):
+    """Regularise decimal date so that each month is exactly 1/12 year
+
+    Parameters
+    ----------
+    date : flt
+        Decimal date
+
+    Returns
+    -------
+    flt
+        Decimal date, rounded to nearest 1/12 year
+    """
+
+    return np.round(date*12)/12.
 
 
 def adjust_emissions_time(time):
@@ -65,7 +82,7 @@ def adjust_emissions_time(time):
     return decimal_date(dt_time)
 
 
-def pad_obs(mf_box, mf_var_box, time,obstime):
+def pad_obs(mf_box, mf_var_box, time, obstime):
     """
     Pad the obs data with NaNs to cover period covered by input emissions
 
