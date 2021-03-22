@@ -54,6 +54,10 @@ class Invert:
         self.mod.run()
 
         # Store some inputs and outputs from prior model
+        # TODO: Note that use of the change_start_date or Change_end_date methods
+        # will cause the prior model to become mis-aligned. 
+        # To align, need to re-run model and then Prior_model step.
+        # Check if this is a problem.
         self.mod_prior = Prior_model(self.mod)
 
 
@@ -71,6 +75,11 @@ class Invert:
                 where the dimensions are then [mf_time, mf_box, flux_time, flux_box]
 
         """
+
+        if not np.allclose(self.mod.time, self.mod_prior.time):
+            raise Exception('''Prior model has become mis-aligned with model,
+                                probably because start or end dates have been changed.
+                                Before calculating sensitivity, re-run model and store Prior_model''')
 
         freq = freq.lower()
         if freq not in ["monthly", "quarterly", "yearly"]:

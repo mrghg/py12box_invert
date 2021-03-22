@@ -1,6 +1,6 @@
 from py12box_invert.paths import Paths
 from py12box_invert.obs import Obs
-from py12box_invert.invert import Invert
+from py12box_invert.invert import Invert, Prior_model
 import numpy as np
 
 
@@ -9,8 +9,21 @@ project_path = Paths.data / f"example/{species}"
 
 inv = Invert(project_path, species)
 
+def test_alignment():
+
+    assert np.allclose(inv.mod.time, inv.obs.time)
+    
 
 def test_sensitivity():
+
+    # Cut down model size to make this faster
+
+    inv.mod.change_start_year(2000.)
+    inv.mod.change_end_year(2010.)
+    
+    # Update prior model, to reflect changes in start and end date
+    inv.mod.run()
+    inv.mod_prior = Prior_model(inv.mod)
 
     inv.run_sensitivity(freq="yearly")
     sens_yr = inv.sensitivity.copy()

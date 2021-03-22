@@ -55,7 +55,10 @@ class Obs:
         df = pd.read_csv(obs_file,
                         comment="#", header=[0, 1], index_col=[0])
 
+        # Convert to decimal date and round to nearest 1/12 month
         self.time = round_date(decimal_date(pd.DatetimeIndex(df.index)))
+
+        # Store mole fraction and uncertainty
         self.mf = df.xs("mf", level="var", axis=1).values
         self.mf_uncertainty = df.xs("mf_variability", level="var", axis=1).values
 
@@ -85,6 +88,7 @@ class Obs:
             nanarray = zeros((len(new_time), 4))*nan
             self.mf = vstack([nanarray, self.mf])
             self.mf_uncertainty = vstack([nanarray, self.mf_uncertainty])
+
 
     def change_end_year(self, end_year):
         """Change end year of the obs class
