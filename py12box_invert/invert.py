@@ -25,6 +25,12 @@ class Prior_model:
         self.mf = mod.mf.copy()
 
 
+class Matrices:
+    """Empty class to store inversion matrices
+    """
+    pass
+
+
 class Invert:
 
     def __init__(self, project_path, species,
@@ -44,10 +50,21 @@ class Invert:
         
         self.obs = Obs(obs_path, start_year=start_year)
 
-        #TODO: Somewhere around here, align times for model and obs arrays
-
         # Get model inputs
         self.mod = Model(species, project_path, start_year=start_year)
+
+        # Align model and obs, and change start/end dates, if needed
+        if start_year:
+            self.change_start_year(start_year)
+        else:
+            # Align to obs dataset.
+            self.change_start_year(int(self.obs.time[0]))
+
+        if end_year:
+            self.change_end_year(end_year)
+        else:
+            #Align to obs dataset
+            self.change_end_year(int(self.obs.time[-1])+1)
 
         # Reference run
         print("Model reference run...")
@@ -55,10 +72,41 @@ class Invert:
 
         # Store some inputs and outputs from prior model
         # TODO: Note that use of the change_start_date or Change_end_date methods
-        # will cause the prior model to become mis-aligned. 
+        # may cause the prior model to become mis-aligned. 
         # To align, need to re-run model and then Prior_model step.
         # Check if this is a problem.
         self.mod_prior = Prior_model(self.mod)
+
+        # Area to store inversion matrices
+        self.mat = Matrices()
+
+
+    def change_start_year(self, start_year):
+        """Simple wrapper for changing start year for obs and model
+
+        Parameters
+        ----------
+        start_year : flt
+            New start year
+        """
+
+        self.obs.change_start_year(start_year)
+        self.mod.change_start_year(start_year)
+        #TODO: Add sensitivity?
+
+
+    def change_end_year(self, end_year):
+        """Simple wrapper for changing end year for obs and model
+
+        Parameters
+        ----------
+        end_year : flt
+            New end year
+        """
+
+        self.obs.change_end_year(end_year)
+        self.mod.change_end_year(end_year)
+        #TODO: Add sensitivity?
 
 
     def run_sensitivity(self, freq="monthly"):
@@ -80,6 +128,11 @@ class Invert:
             raise Exception('''Prior model has become mis-aligned with model,
                                 probably because start or end dates have been changed.
                                 Before calculating sensitivity, re-run model and store Prior_model''')
+
+        if not np.allclose(self.mod.time, self.obs.time):
+            raise Exception('''Model has become mis-aligned with obs,
+                                probably because start or end dates have been changed for one or the other.
+                                ''')
 
         freq = freq.lower()
         if freq not in ["monthly", "quarterly", "yearly"]:
@@ -114,7 +167,21 @@ class Invert:
                 self.sensitivity[:, 4*ti + bi] = (self.mod.mf[:,:4].flatten() - self.mod_prior.mf[:,:4].flatten()) / 1.
 
 
-    # # # Pad obs to senstivity
-    # # obs, obs_sd = utils.pad_obs(mf_box, mf_var_box, time, obstime)
+    def create_matrices(self, sigma_P=None):
 
-        
+        wh_obs = np.isfinite(self.obs.mf.flatten())
+        nx = self.sensitivity.shape[1]
+
+        self.mat.H = self.sensitivity[wh_obs,:]
+
+        # Flatten model outputs, noting that all 12 boxes are output (compared to 4 for obs)
+        self.mat.y = self.obs.mf[:, :4].flatten()[wh_obs] - self.mod_prior.mf[:, :4].flatten()[wh_obs]
+
+        #TODO: Functions to choose uncertainty estimation method
+        self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[wh_obs]**2)
+    
+        #TODO: Function to choose emissions uncertainty method
+        # this is just a placeholder
+        self.mat.P_inv = np.linalg.inv(np.diag(np.ones(nx)*sigma_P**2))
+    
+        self.mat.x_a = np.zeros(nx)

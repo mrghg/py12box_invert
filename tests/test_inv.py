@@ -1,6 +1,6 @@
 from py12box_invert.paths import Paths
 from py12box_invert.obs import Obs
-from py12box_invert.invert import Invert, Prior_model
+from py12box_invert.invert import Invert, Matrices, Prior_model
 import numpy as np
 
 
@@ -8,6 +8,7 @@ species = "CFC-11"
 project_path = Paths.data / f"example/{species}"
 
 inv = Invert(project_path, species)
+
 
 def test_alignment():
 
@@ -18,8 +19,8 @@ def test_sensitivity():
 
     # Cut down model size to make this faster
 
-    inv.mod.change_start_year(2000.)
-    inv.mod.change_end_year(2010.)
+    inv.change_start_year(2000.)
+    inv.change_end_year(2010.)
     
     # Update prior model, to reflect changes in start and end date
     inv.mod.run()
@@ -67,3 +68,31 @@ def test_sensitivity():
                                 (int(sens_mo.shape[0]/4), 4, int(sens_mo.shape[1]/4/12), 12, 4)).sum(axis=3)
     assert np.allclose(sens_yr_boxed, sens_qu_boxed_averaged)
     assert np.allclose(sens_yr_boxed, sens_mo_boxed_averaged)
+
+
+def test_matrices():
+
+    inv.run_sensitivity("yearly")
+
+    inv.create_matrices(sigma_P=10.)
+
+    # Check that sensitivity matrix has same number of rows as number of finite obs
+    assert inv.mat.H.shape[0] == int(np.isfinite(inv.obs.mf).sum())
+    # Check sensitivty matrix has columns corresponding to annual perturbations
+    assert inv.mat.H.shape[1] == int(inv.mod.emissions.shape[0]*inv.mod.emissions.shape[1]/12)
+
+    assert inv.mat.y.shape[0] == inv.mat.H.shape[0]
+    assert inv.mat.x_a.shape[0] == inv.mat.H.shape[1]
+
+    assert inv.mat.P_inv.shape[0] == inv.mat.P_inv.shape[1]
+
+    # Check all diagonal prior covariances are positive
+    assert sum(np.diag(inv.mat.P_inv) > 0.) == inv.mat.x_a.shape[0]
+
+    assert inv.mat.y.shape[0] == inv.mat.R.shape[0]
+    assert inv.mat.y.shape[0] == inv.mat.R.shape[1]
+
+    # Check all diagonal measurement covariances are positive
+    assert sum(np.diag(inv.mat.R) > 0.) == inv.mat.y.shape[0]
+
+

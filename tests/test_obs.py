@@ -3,14 +3,23 @@ import numpy as np
 from py12box_invert.paths import Paths
 from py12box_invert.obs import Obs
 
-cfc11 = Obs(Paths.data / "example/CFC-11/CFC-11_obs.csv")
+obs_file = Paths.data / "example/CFC-11/CFC-11_obs.csv"
+cfc11 = Obs(obs_file)
+
+with open(obs_file, "r") as f:
+    lines = f.readlines()
+
+ncomment = len([l for l in lines if l[0] == "#"])
+nheader = 2 # There are two header lines
+nlines = len(lines) - ncomment - nheader
+
 
 def test_read():
 
     assert cfc11.scale == "SIO-05"
     assert cfc11.units == "ppt"
-    assert cfc11.mf.shape == (511, 4)
-    assert cfc11.mf_uncertainty.shape == (511, 4)
+    assert cfc11.mf.shape == (nlines, 4)
+    assert cfc11.mf_uncertainty.shape == (nlines, 4)
     assert cfc11.mf[0 , 0] == 158.39
 
 
