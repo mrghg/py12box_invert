@@ -50,7 +50,7 @@ def test_sensitivity():
     assert sens_qu[0, 0] > 0.
     assert sens_mo[0, 0] > 0.
 
-    # For last flux element, nothing should be seen before until timestep
+    # For last flux element, nothing should be seen before last timestep
     assert np.isclose(sens_mo[-5, -1], 0.)
     assert sens_mo[-1, -1] > 0.
     assert np.isclose(sens_yr[-12*4-1, -1], 0.)
