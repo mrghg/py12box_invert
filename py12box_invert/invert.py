@@ -6,7 +6,7 @@ from math import ceil
 from multiprocessing import Pool
 
 from py12box_invert.obs import Obs
-from py12box.model import Model
+from py12box.model import Model, core
 #from py12box.core import flux_sensitivity
 
 
@@ -111,13 +111,14 @@ class Invert:
         #TODO: Add sensitivity?
 
 
-    def run_sensitivity(self, freq="monthly"):
+    def run_sensitivity(self, freq="monthly", nthreads=12):
         """
         Derive linear yearly flux sensitivities
         
             Parameters:
-                freq (str, optional)       : Frequency to infer ("monthly", "quarterly", "yearly")
-                                            Default is monthly.
+                freq (str, optional) : Frequency to infer ("monthly", "quarterly", "yearly")
+                                    Default is monthly.
+                nthreads (int, optional) : Number of threads to run over
             Attributes:
                 Linear sensitivity to emissions
                 Note that self.sensitivity can be reshaped using:
@@ -154,57 +155,32 @@ class Invert:
         # (mole fraction in rows, emissions in columns)
         self.sensitivity = np.zeros((nmonths*4, nsens*4))
 
-        def sensitivity_section(mod, mod_prior, nsens_section, t0):
-
-            sens = np.zeros((len(mod.mf[:, :4].flatten()), nsens_section*4))
-
-            for ti in range(nsens_section):
-                for bi in range(4):
-
-                    # Perturb emissions uniformly throughout specified time period
-                    emissions_perturbed = mod_prior.emissions.copy()
-                    emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
-                    mod.emissions = emissions_perturbed.copy()
-
-                    # Run perturbed model
-                    mod.run(verbose=False)
-                    
-                    # Store sensitivity column
-                    sens[:, 4*ti + bi] = (mod.mf[:,:4].flatten() - mod_prior.mf[:,:4].flatten()) / 1.
-
-            return sens
-
-        nthreads=12
         nsens_section = ceil(nsens/nthreads)
+        nsens_out = [nsens_section if nsens_section * (t + 1) < nsens else nsens - (nsens_section * t) for t in range(nthreads)]
 
-        #with Pool(processes=nthreads) as pool:
-        for thread in range(nthreads):
-            
-            if nsens_section * (thread + 1) > nsens:
-                nsens_out = nsens - (nsens_section * thread)
-            else:
-                nsens_out = nsens_section
-            
-            if nsens_out > 0:
-                self.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out*4] = \
-                    sensitivity_section(self.mod,
-                                        self.mod_prior,
-                                        nsens_out,
-                                        nsens_section*thread)
+        print(f"Calculating sensitivity on {nthreads} threads...")
 
-        # for ti in tqdm(range(nsens)):
-        #     for bi in range(4):
+        with Pool(processes=nthreads) as pool:
 
-        #         # Perturb emissions uniformly throughout specified time period
-        #         emissions_perturbed = self.mod_prior.emissions.copy()
-        #         emissions_perturbed[ti*freq_months:freq_months*(ti+1), bi] += 1
-        #         self.mod.emissions = emissions_perturbed.copy()
+            results = []
 
-        #         # Run perturbed model
-        #         self.mod.run(verbose=False)
+            for thread in range(nthreads):
                 
-        #         # Store sensitivity column
-        #         self.sensitivity[:, 4*ti + bi] = (self.mod.mf[:,:4].flatten() - self.mod_prior.mf[:,:4].flatten()) / 1.
+                results.append(pool.apply_async(sensitivity_section, 
+                                                args=(nsens_out[thread],
+                                                      nsens_section*thread,
+                                                      freq_months, self.mod_prior.mf,
+                                                      self.mod.ic, self.mod_prior.emissions, self.mod.mol_mass, self.mod.lifetime,
+                                                      self.mod.F, self.mod.temperature, self.mod.oh, self.mod.cl,
+                                                      self.mod.oh_a, self.mod.oh_er, self.mod.mass)))
+
+            for thread in range(nthreads):
+
+                if nsens_out[thread] > 0:
+                    self.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out[thread]*4] = \
+                        results[thread].get()
+
+        print("... done")
 
 
     def create_matrices(self, sigma_P=None):
@@ -225,3 +201,53 @@ class Invert:
         self.mat.P_inv = np.linalg.inv(np.diag(np.ones(nx)*sigma_P**2))
     
         self.mat.x_a = np.zeros(nx)
+
+
+def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
+                        ic, emissions, mol_mass, lifetime,
+                        F, temperature, oh, cl, oh_a, oh_er, mass):
+    """Calculate some section of the sensitivity matrix 
+
+    Parameters
+    ----------
+    nsens_section : int
+        Number of perturbations to carry out
+    t0 : int
+        Position of perturbation
+    freq_months : int
+        Number of months to perturb each time (e.g. monthly, quarterly, annually)
+    mf_ref : ndarray
+        Reference run mole fraction
+
+    Returns
+    -------
+    ndarray
+        Section of sensitivty matrix
+    """
+
+    if nsens_section > 0:
+
+        sens = np.zeros((len(mf_ref[:, :4].flatten()), nsens_section*4))
+
+        for ti in range(nsens_section):
+            for bi in range(4):
+
+                # Perturb emissions uniformly throughout specified time period
+                emissions_perturbed = emissions.copy()
+                emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
+
+                # Run perturbed model
+                mf_out, burden_out, q_out, losses, global_lifetimes = \
+                        core.model(ic, emissions_perturbed, mol_mass, lifetime,
+                                    F, temperature, oh, cl,
+                                    arr_oh=np.array([oh_a, oh_er]),
+                                    mass=mass)
+                
+                # Store sensitivity column
+                sens[:, 4*ti + bi] = (mf_out[:,:4].flatten() - mf_ref[:,:4].flatten()) / 1.
+
+        return sens
+    
+    else:
+
+        return None
