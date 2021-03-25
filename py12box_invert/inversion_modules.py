@@ -7,6 +7,12 @@ from py12box_invert.core import global_mf, hemis_mf, annual_means
 class Inverse_method:
 
     def rigby14(self):
+        # Check that self.matrices has correct inputs
+
+        # Run inversion
+
+        # Store outputs in self.mod_posterior
+        
         pass
 
 
