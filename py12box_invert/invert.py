@@ -4,8 +4,10 @@ from tqdm import tqdm
 from bisect import bisect
 from math import ceil
 from multiprocessing import Pool
+import importlib
 
 from py12box_invert.obs import Obs
+from py12box_invert.inversion_modules import Inverse_method
 from py12box.model import Model, core
 #from py12box.core import flux_sensitivity
 
@@ -26,6 +28,10 @@ class Prior_model:
         # Model outputs
         self.mf = mod.mf.copy()
 
+class Posterior_model:
+    """Empty class to store posterior model
+    """
+    pass
 
 class Matrices:
     """Empty class to store inversion matrices
@@ -33,12 +39,13 @@ class Matrices:
     pass
 
 
-class Invert:
+class Invert(Inverse_method):
 
     def __init__(self, project_path, species,
                         obs_path=None, 
                         start_year = None,
                         end_year = None,
+                        method = "rigby14",
                         ic0=None, 
                         emissions_sd=1., freq="monthly", MCMC=False,
                         nit=10000, tune=None, burn=None):
@@ -52,35 +59,43 @@ class Invert:
         
         self.obs = Obs(obs_path, start_year=start_year)
 
+        self.run_inversion = getattr(self, method)
+
+
         # Get model inputs
-        self.mod = Model(species, project_path, start_year=start_year)
+        # self.mod = Model(species, project_path, start_year=start_year)
 
-        # Align model and obs, and change start/end dates, if needed
-        if start_year:
-            self.change_start_year(start_year)
-        else:
-            # Align to obs dataset.
-            self.change_start_year(int(self.obs.time[0]))
+        # # Align model and obs, and change start/end dates, if needed
+        # if start_year:
+        #     self.change_start_year(start_year)
+        # else:
+        #     # Align to obs dataset.
+        #     self.change_start_year(int(self.obs.time[0]))
 
-        if end_year:
-            self.change_end_year(end_year)
-        else:
-            #Align to obs dataset
-            self.change_end_year(int(self.obs.time[-1])+1)
+        # if end_year:
+        #     self.change_end_year(end_year)
+        # else:
+        #     #Align to obs dataset
+        #     self.change_end_year(int(self.obs.time[-1])+1)
 
-        # Reference run
-        print("Model reference run...")
-        self.mod.run()
+        # # Reference run
+        # print("Model reference run...")
+        # self.mod.run()
 
-        # Store some inputs and outputs from prior model
-        # TODO: Note that use of the change_start_date or Change_end_date methods
-        # may cause the prior model to become mis-aligned. 
-        # To align, need to re-run model and then Prior_model step.
-        # Check if this is a problem.
-        self.mod_prior = Prior_model(self.mod)
+        # # Store some inputs and outputs from prior model
+        # # TODO: Note that use of the change_start_date or Change_end_date methods
+        # # may cause the prior model to become mis-aligned. 
+        # # To align, need to re-run model and then Prior_model step.
+        # # Check if this is a problem.
+        # self.mod_prior = Prior_model(self.mod)
 
-        # Area to store inversion matrices
-        self.mat = Matrices()
+        # # Area to store inversion matrices
+        # self.mat = Matrices()
+
+        # # Area to store posterior model
+        # self.mod_posterior = Posterior_model()
+
+
 
 
     def change_start_year(self, start_year):

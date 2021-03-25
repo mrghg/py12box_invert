@@ -4,6 +4,12 @@ import pandas as pd
 from py12box_invert.core import global_mf, hemis_mf, annual_means
 
 
+class Inverse_method:
+
+    def rigby14(self):
+        pass
+
+
 def inversion_analytical(y, H, x_a, R, P_inv):
     """
     Perform a Gaussian analytical inversion assuming linearity.
