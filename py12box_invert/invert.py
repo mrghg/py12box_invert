@@ -184,6 +184,13 @@ class Invert:
 
 
     def create_matrices(self, sigma_P=None):
+        """Set up matrices for inversion
+
+        Parameters
+        ----------
+        sigma_P : flt, optional
+            Placeholder flux uncertainty in Gg/yr, by default None
+        """
 
         wh_obs = np.isfinite(self.obs.mf.flatten())
         nx = self.sensitivity.shape[1]
