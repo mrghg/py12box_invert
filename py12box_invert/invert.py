@@ -59,43 +59,41 @@ class Invert(Inverse_method):
         
         self.obs = Obs(obs_path, start_year=start_year)
 
-        self.run_inversion = getattr(self, method)
-
-
         # Get model inputs
-        # self.mod = Model(species, project_path, start_year=start_year)
+        self.mod = Model(species, project_path, start_year=start_year)
 
-        # # Align model and obs, and change start/end dates, if needed
-        # if start_year:
-        #     self.change_start_year(start_year)
-        # else:
-        #     # Align to obs dataset.
-        #     self.change_start_year(int(self.obs.time[0]))
+        # Align model and obs, and change start/end dates, if needed
+        if start_year:
+            self.change_start_year(start_year)
+        else:
+            # Align to obs dataset.
+            self.change_start_year(int(self.obs.time[0]))
 
-        # if end_year:
-        #     self.change_end_year(end_year)
-        # else:
-        #     #Align to obs dataset
-        #     self.change_end_year(int(self.obs.time[-1])+1)
+        if end_year:
+            self.change_end_year(end_year)
+        else:
+            #Align to obs dataset
+            self.change_end_year(int(self.obs.time[-1])+1)
 
-        # # Reference run
-        # print("Model reference run...")
-        # self.mod.run()
+        # Reference run
+        print("Model reference run...")
+        self.mod.run()
 
-        # # Store some inputs and outputs from prior model
-        # # TODO: Note that use of the change_start_date or Change_end_date methods
-        # # may cause the prior model to become mis-aligned. 
-        # # To align, need to re-run model and then Prior_model step.
-        # # Check if this is a problem.
-        # self.mod_prior = Prior_model(self.mod)
+        # Store some inputs and outputs from prior model
+        # TODO: Note that use of the change_start_date or Change_end_date methods
+        # may cause the prior model to become mis-aligned. 
+        # To align, need to re-run model and then Prior_model step.
+        # Check if this is a problem.
+        self.mod_prior = Prior_model(self.mod)
 
-        # # Area to store inversion matrices
-        # self.mat = Matrices()
+        # Area to store inversion matrices
+        self.mat = Matrices()
 
-        # # Area to store posterior model
-        # self.mod_posterior = Posterior_model()
+        # Area to store posterior model
+        self.mod_posterior = Posterior_model()
 
-
+        # Get inverse method
+        self.run_inversion = getattr(self, method)
 
 
     def change_start_year(self, start_year):

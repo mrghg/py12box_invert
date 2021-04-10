@@ -16,50 +16,50 @@ class Inverse_method:
         pass
 
 
-def inversion_analytical(y, H, x_a, R, P_inv):
-    """
-    Perform a Gaussian analytical inversion assuming linearity.
-    The inferred value 'x_hat' is the difference in emissions from the reference run.
-    
-        Parameters:
-             y (array)         : Deviation from a priori emissions
-             H (array)         : Sensitivity matrix
-             x_a (array)       : A priori deviation (defaults to zeros)
-             R (square matrix) : Model-measurement covariance matrix
-             P_inv (square matrix) : Emissions inverse covariance matrix
-        Returns:
-            x_hat (array): Posterior mean difference from a priori
-            P_hat (array): Posterior covariance matrix
-    """
-    R_inv = np.linalg.inv(R)
-    x_hat = np.linalg.inv(H.T @ R_inv @ H + P_inv) @ (H.T @ R_inv @ y + P_inv @ x_a)
-    P_hat = np.linalg.inv(H.T @ R_inv @ H + P_inv)
-    return x_hat, P_hat
+    def analytical_gaussian(self):
+        """
+        Perform a Gaussian analytical inversion assuming linearity.
+        The inferred value 'x_hat' is the difference in emissions from the reference run.
+        
+            Parameters:
+                y (array)         : Deviation from a priori emissions
+                H (array)         : Sensitivity matrix
+                x_a (array)       : A priori deviation (defaults to zeros)
+                R (square matrix) : Model-measurement covariance matrix
+                P_inv (square matrix) : Emissions inverse covariance matrix
+            Returns:
+                x_hat (array): Posterior mean difference from a priori
+                P_hat (array): Posterior covariance matrix
+        """
+        R_inv = np.linalg.inv(self.mat.R)
+        self.mat.x_hat = np.linalg.inv(self.mat.H.T @ R_inv @ self.mat.H + self.mat.P_inv) @ (self.mat.H.T @ R_inv @ self.mat.y + self.mat.P_inv @ self.mat.x_a)
+        self.mat.P_hat = np.linalg.inv(self.mat.H.T @ R_inv @ self.mat.H + self.mat.P_inv)
+        
 
 
-def analytical_gaussian(y, H, x_a, R, P_inv, sensitivity, mf_ref, emis_ref, freq, time):
-    """
-    Do an analytical Gaussian inversion, assuming conjugacy (Gaussian likelihood and prior)
-    """
+# def analytical_gaussian(y, H, x_a, R, P_inv, sensitivity, mf_ref, emis_ref, freq, time):
+#     """
+#     Do an analytical Gaussian inversion, assuming conjugacy (Gaussian likelihood and prior)
+#     """
 
-    #Do inversion
-    x_hat, P_hat = inversion_analytical(y, H, x_a, R, P_inv)
+#     #Do inversion
+#     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P_inv)
     
-    #Calculate global and hemispheric mole fraction
-    xmf_out, xmf_sd_out = global_mf(sensitivity, x_hat, P_hat, mf_ref)
-    xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out = hemis_mf(sensitivity, x_hat, P_hat, mf_ref)
-    index = np.round(time[::12]).astype(int)
-    model_mf = pd.DataFrame(index=index, \
-                            data={"Global_mf": xmf_out, "Global_mf_sd": xmf_sd_out, \
-                                    "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
-                                    "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
+#     #Calculate global and hemispheric mole fraction
+#     xmf_out, xmf_sd_out = global_mf(sensitivity, x_hat, P_hat, mf_ref)
+#     xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out = hemis_mf(sensitivity, x_hat, P_hat, mf_ref)
+#     index = np.round(time[::12]).astype(int)
+#     model_mf = pd.DataFrame(index=index, \
+#                             data={"Global_mf": xmf_out, "Global_mf_sd": xmf_sd_out, \
+#                                     "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
+#                                     "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
     
-    #Calculate annual emissions
-    x_out, x_sd_out = annual_means(x_hat, P_hat, emis_ref, freq=freq)
-    model_emis = pd.DataFrame(index=index, data={"Global_emissions": x_out, \
-                                                              "Global_emissions_sd": x_sd_out})  
+#     #Calculate annual emissions
+#     x_out, x_sd_out = annual_means(x_hat, P_hat, emis_ref, freq=freq)
+#     model_emis = pd.DataFrame(index=index, data={"Global_emissions": x_out, \
+#                                                               "Global_emissions_sd": x_sd_out})  
     
-    return model_emis, model_mf
+#     return model_emis, model_mf
 
 
 def NUTS_expRW1(H, x_a, R, y, emis_ref, sensitivity, time, nit=10000, tune=None, burn=None, freq="yearly"):
