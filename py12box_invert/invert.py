@@ -38,6 +38,11 @@ class Matrices:
     """
     pass
 
+class Sensitivity:
+    """Empty class to store sensitivity
+    """
+    pass
+
 
 class Invert(Inverse_method):
 
@@ -50,7 +55,6 @@ class Invert(Inverse_method):
                         emissions_sd=1., freq="monthly", MCMC=False,
                         nit=10000, tune=None, burn=None):
         
-
         # Get obs
         if not obs_path and not (project_path / f"{species}_obs.csv").exists():
             raise Exception("No obs file given.")
@@ -92,8 +96,14 @@ class Invert(Inverse_method):
         # Area to store posterior model
         self.mod_posterior = Posterior_model()
 
+        # Area to store sensitivity
+        self.sensitivity = Sensitivity()
+
         # Get inverse method
         self.run_inversion = getattr(self, method)
+        
+        # Get method to process posterior
+        self.posterior = getattr(self, f"{method}_posterior")
 
 
     def change_start_year(self, start_year):
@@ -155,7 +165,8 @@ class Invert(Inverse_method):
             raise Exception('Frequency must be "monthly", "quarterly" or "yearly"')
         
         freq_months={"monthly":1, "quarterly":3, "yearly":12}[freq]
-        
+        self.sensitivity.freq_months = freq_months
+
         nmonths = len(self.mod_prior.time)
 
         if nmonths % 12:
@@ -164,9 +175,9 @@ class Invert(Inverse_method):
         # number of discrete periods over which emissions sensitivity is calculated
         nsens = int(nmonths/freq_months)
 
-        # empty sensitivity matrix. Factors of 4 are for surface boxes 
+        # empty sensitivity matrix. Factors of 4 are for surface boxes
         # (mole fraction in rows, emissions in columns)
-        self.sensitivity = np.zeros((nmonths*4, nsens*4))
+        self.sensitivity.sensitivity = np.zeros((nmonths*4, nsens*4))
 
         nsens_section = ceil(nsens/nthreads)
         nsens_out = [nsens_section if nsens_section * (t + 1) < nsens else nsens - (nsens_section * t) for t in range(nthreads)]
@@ -190,7 +201,7 @@ class Invert(Inverse_method):
             for thread in range(nthreads):
 
                 if nsens_out[thread] > 0:
-                    self.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out[thread]*4] = \
+                    self.sensitivity.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out[thread]*4] = \
                         results[thread].get()
 
         print("... done")
@@ -205,16 +216,16 @@ class Invert(Inverse_method):
             Placeholder flux uncertainty in Gg/yr, by default None
         """
 
-        wh_obs = np.isfinite(self.obs.mf.flatten())
-        nx = self.sensitivity.shape[1]
+        self.mat.wh_obs = np.isfinite(self.obs.mf.flatten())
+        nx = self.sensitivity.sensitivity.shape[1]
 
-        self.mat.H = self.sensitivity[wh_obs,:]
+        self.mat.H = self.sensitivity.sensitivity[self.mat.wh_obs,:]
 
         # Flatten model outputs, noting that all 12 boxes are output (compared to 4 for obs)
-        self.mat.y = self.obs.mf[:, :4].flatten()[wh_obs] - self.mod_prior.mf[:, :4].flatten()[wh_obs]
+        self.mat.y = self.obs.mf[:, :4].flatten()[self.mat.wh_obs] - self.mod_prior.mf[:, :4].flatten()[self.mat.wh_obs]
 
         #TODO: Functions to choose uncertainty estimation method
-        self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[wh_obs]**2)
+        self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[self.mat.wh_obs]**2)
     
         #TODO: Function to choose emissions uncertainty method
         # this is just a placeholder
