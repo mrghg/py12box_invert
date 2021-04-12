@@ -11,18 +11,6 @@ class Inverse_method:
     posterior mole fraction and emissions matrices to be calculated
     """
 
-    def rigby14(self):
-        # Check that self.matrices has correct inputs
-
-        # Run inversion
-
-        # Store outputs in self.mod_posterior
-        
-        pass
-
-    def rigby14_posterior(self):
-        pass
-
     def analytical_gaussian(self):
         """
         TODO: Update this docstring
@@ -58,29 +46,30 @@ class Inverse_method:
                 self.mod_posterior.emissions[ti*freq_months:(ti+1)*freq_months, bi] += self.mat.x_hat[4*ti + bi]    
 
 
-# def analytical_gaussian(y, H, x_a, R, P_inv, sensitivity, mf_ref, emis_ref, freq, time):
-#     """
-#     Do an analytical Gaussian inversion, assuming conjugacy (Gaussian likelihood and prior)
-#     """
+    def rigby14(self):
+        """Emissions growth-constrainted method of Rigby et al., 2011 and 2014
+        """
+        
+        # Difference operator
+        nx = len(self.mat.x_a)
+        D = np.zeros((nx, nx))
+        for xi in range(nx):
+            if (xi % (nx/4)) != nx/4 - 1:
+                D[xi, xi] = -1.
+                D[xi, xi+1] = 1.
 
-#     #Do inversion
-#     x_hat, P_hat = inversion_analytical(y, H, x_a, R, P_inv)
-    
-#     #Calculate global and hemispheric mole fraction
-#     xmf_out, xmf_sd_out = global_mf(sensitivity, x_hat, P_hat, mf_ref)
-#     xmf_N_out, xmf_N_sd_out, xmf_S_out, xmf_S_sd_out = hemis_mf(sensitivity, x_hat, P_hat, mf_ref)
-#     index = np.round(time[::12]).astype(int)
-#     model_mf = pd.DataFrame(index=index, \
-#                             data={"Global_mf": xmf_out, "Global_mf_sd": xmf_sd_out, \
-#                                     "N_mf":xmf_N_out, "N_mf_sd":xmf_N_sd_out, \
-#                                     "S_mf":xmf_S_out, "S_mf_sd":xmf_S_sd_out})
-    
-#     #Calculate annual emissions
-#     x_out, x_sd_out = annual_means(x_hat, P_hat, emis_ref, freq=freq)
-#     model_emis = pd.DataFrame(index=index, data={"Global_emissions": x_out, \
-#                                                               "Global_emissions_sd": x_sd_out})  
-    
-#     return model_emis, model_mf
+        H = self.mat.H.copy()
+
+        R_inv = np.linalg.inv(self.mat.R)
+        self.mat.x_hat = np.linalg.inv(H.T @ R_inv @ H + self.mat.P_inv) @ (H.T @ R_inv @ self.mat.y + D.T @ self.mat.P_inv @ self.mat.x_a)
+        self.mat.P_hat = np.linalg.inv(H.T @ R_inv @ H + D.T @ self.mat.P_inv @ D)
+
+
+    def rigby14_posterior(self):
+        """The same as a standard analytical Gaussian
+        """
+
+        self.analytical_gaussian_posterior()
 
 
 def NUTS_expRW1(H, x_a, R, y, emis_ref, sensitivity, time, nit=10000, tune=None, burn=None, freq="yearly"):
