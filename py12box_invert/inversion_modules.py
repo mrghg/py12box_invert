@@ -31,6 +31,7 @@ class Inverse_method:
         self.mat.x_hat = np.linalg.inv(self.mat.H.T @ R_inv @ self.mat.H + self.mat.P_inv) @ (self.mat.H.T @ R_inv @ self.mat.y + self.mat.P_inv @ self.mat.x_a)
         self.mat.P_hat = np.linalg.inv(self.mat.H.T @ R_inv @ self.mat.H + self.mat.P_inv)
     
+    
     def analytical_gaussian_posterior(self):
         """Method to process posterior mole fractions and emissions
         """
