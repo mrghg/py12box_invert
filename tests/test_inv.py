@@ -27,13 +27,13 @@ def test_sensitivity():
     inv.mod_prior = Prior_model(inv.mod)
 
     inv.run_sensitivity(freq="yearly")
-    sens_yr = inv.sensitivity.copy()
+    sens_yr = inv.sensitivity.sensitivity.copy()
 
     inv.run_sensitivity(freq="quarterly")
-    sens_qu = inv.sensitivity.copy()
+    sens_qu = inv.sensitivity.sensitivity.copy()
 
     inv.run_sensitivity(freq="monthly")
-    sens_mo = inv.sensitivity.copy()
+    sens_mo = inv.sensitivity.sensitivity.copy()
 
     # Check number of columns is correct
     assert int(len(sens_mo[0,:])/12) == len(sens_yr[0, :])
