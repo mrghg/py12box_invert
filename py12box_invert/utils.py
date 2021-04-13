@@ -7,46 +7,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-def obs_read(obs_path):
-    """
-    Read csv file containing monthly mean observations at each site
-
-        Parameters:
-            obs_path (pathlib path): Path to obs file
-        Returns:
-            Pandas data frame
-    """
-    if "agage" in str(obs_path):
-        df = pd.read_csv(obs_path, header=[0, 1, 2,3,4],
-                         skipinitialspace=True, index_col=0,
-                         parse_dates=[0], comment="#")
-    else: 
-        df = pd.read_csv(obs_path, header=[0, 1, 2],
-                      skipinitialspace=True, index_col=0,
-                      parse_dates=[0])
-
-    return df
-
-def obs_box(obsdf):
-    """
-    Box up obs data into surface boxes
-    
-        Parameters:
-            obsdf (dataframe): Pandas dataframe containing obs data
-        Returns:
-            mf_box (array)    : Array of boxed obs
-            mf_var_box (array): Array of boxed mole fraction variability
-    
-    Q: Should I weight these by latitude?!
-    Q: Currently more than one measurement in box then uncertatinty is higher – not really true.
-    """
-    mf_box = np.zeros((4, len(obsdf.index))) 
-    mf_var_box = np.zeros((4, len(obsdf.index))) 
-    for sb in range(4):
-        mf_box[sb,:] = obsdf.xs("mf",level="var", axis=1).xs(str(sb),level="box", axis=1).mean(axis=1, skipna=True)
-        mf_var_box[sb,:] = obsdf.xs("mf_variability",level="var", axis=1).xs(str(sb),level="box", axis=1).apply(np.square).apply(np.nansum, axis=1).apply(np.sqrt)
-    return mf_box, mf_var_box
-
 def approx_initial_conditions(species, project_path, ic0):
     """
     Spin up the model to approximate initial conditions
@@ -69,6 +29,7 @@ def approx_initial_conditions(species, project_path, ic0):
     #Take final spun up value and scale each semi-hemisphere to surface boxes.
     return c_month[-1,:] * np.tile(ic0[:4]/c_month[-1,:4],3)
 
+
 def decimal_date(date):
     '''
     Calculate decimal date from pandas DatetimeIndex
@@ -78,10 +39,31 @@ def decimal_date(date):
         Returns:
             Array of decimal dates
     '''
-    
+
+    if not isinstance(date, pd.DatetimeIndex):
+        raise Exception("Expecting pandas.DatetimeIndex")
+
     days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
     
     return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
+
+
+def round_date(date):
+    """Regularise decimal date so that each month is exactly 1/12 year
+
+    Parameters
+    ----------
+    date : flt
+        Decimal date
+
+    Returns
+    -------
+    flt
+        Decimal date, rounded to nearest 1/12 year
+    """
+
+    return np.round(date*12)/12.
+
 
 def adjust_emissions_time(time):
     """
@@ -100,7 +82,7 @@ def adjust_emissions_time(time):
     return decimal_date(dt_time)
 
 
-def pad_obs(mf_box, mf_var_box, time,obstime):
+def pad_obs(mf_box, mf_var_box, time, obstime):
     """
     Pad the obs data with NaNs to cover period covered by input emissions
 
@@ -121,6 +103,7 @@ def pad_obs(mf_box, mf_var_box, time,obstime):
     obs = obs_df.values.flatten()
     obs_sd = obs_sd_df.values.flatten()
     return obs, obs_sd
+
 
 def plot_emissions(model_emissions, species, savepath=None, MCMC=False):
     """
@@ -150,7 +133,8 @@ def plot_emissions(model_emissions, species, savepath=None, MCMC=False):
             savename = species+"_emissions_"+str(pd.to_datetime("today"))[:10]+ext
             plt.savefig( savedir / savename, dpi=200)
     plt.close()
-        
+
+
 def plot_mf(model_mf, species, savepath=None):
     """
     Plot Global and hemispheric mole fractions, from analytical inversion
@@ -171,7 +155,8 @@ def plot_mf(model_mf, species, savepath=None):
             savename = species+"_mf_"+str(pd.to_datetime("today"))[:10]+ext
             plt.savefig( savedir / savename , dpi=200)
     plt.close()
-    
+
+
 def mf_to_csv(savepath, model_mf, species, comment=None):
     """
     Write Global and hemispheric mole fractions to csv
@@ -187,7 +172,8 @@ def mf_to_csv(savepath, model_mf, species, comment=None):
         f.write(comment)
     model_mf.to_csv(f)
     f.close()
-    
+
+
 def emissions_to_csv(savepath, model_emissions, species, comment=None):
     """
     Write emissions to csv 
