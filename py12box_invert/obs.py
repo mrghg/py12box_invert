@@ -83,7 +83,7 @@ class Obs:
 
         elif float(start_year) < self.time[0]:
             # Pad with nans
-            new_time = arange(start_year, self.time[0], step=1/12)
+            new_time = arange(start_year, self.time[0]-1/12., step=1/12)
             self.time = hstack([new_time, self.time])
             nanarray = zeros((len(new_time), 4))*nan
             self.mf = vstack([nanarray, self.mf])
