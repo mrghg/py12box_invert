@@ -124,7 +124,7 @@ class Invert(Inverse_method):
         start_year : flt
             New start year
         """
-
+        
         self.obs.change_start_year(start_year)
         self.mod.change_start_year(start_year)
         #TODO: Add sensitivity?
@@ -278,7 +278,7 @@ def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
                 emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
 
                 # Run perturbed model
-                mf_out, burden_out, q_out, losses, global_lifetimes = \
+                mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
                         core.model(ic, emissions_perturbed, mol_mass, lifetime,
                                     F, temperature, oh, cl,
                                     arr_oh=np.array([oh_a, oh_er]),
