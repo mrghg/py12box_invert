@@ -132,6 +132,34 @@ class Invert(Inverse_method):
         print("... done")
 
 
+    def run_initial_conditions(self):
+
+        # Find first timestep with finite obs
+        wh = np.where(np.isfinite(self.obs.mf))
+        first_obs_ti = wh[0][0]
+        first_obs_bi = wh[1][wh[0] == first_obs_ti] # this tells us which boxes were finite at this timestep
+
+        # Block average emissions for comparison with sensitivity matrix
+        x_a = self.mod.emissions.reshape(int(self.mod.emissions.shape[0]/self.sensitivity.freq_months), 
+                self.sensitivity.freq_months,
+                self.mod.emissions.shape[1]).mean(axis=1)
+        x_a = x_a.flatten()
+
+        # Work out the mole fractions due to these emissions
+        mf_prior = self.sensitivity.sensitivity @ x_a
+
+        # Work out how much higher or lower the mf should have been at first timestep
+        mf_offset = np.mean(self.obs.mf[first_obs_ti, first_obs_bi] - \
+                mf_prior[first_obs_ti, first_obs_bi])
+        
+        # Work out how far initial conditions are from first obs
+        ic_offset = np.mean(self.obs.mf[first_obs_ti, first_obs_bi] - \
+                self.mod.ic[first_obs_ti, first_obs_bi])
+
+        # Adjust initial conditions to reflect these offsets
+        self.mod.ic -= (ic_offset + mf_offset)
+
+
     def change_start_year(self, start_year):
         """Simple wrapper for changing start year for obs and model
 
