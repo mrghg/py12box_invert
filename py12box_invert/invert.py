@@ -57,26 +57,26 @@ class Invert(Inverse_method):
         
         # Get obs
         if not obs_path and not (project_path / f"{species}_obs.csv").exists():
-            raise Exception("No obs file given.")
+            raise FileNotFoundError("No obs file given.")
         elif (project_path / f"{species}_obs.csv").exists():
             obs_path = project_path / f"{species}_obs.csv"
         
-        self.obs = Obs(obs_path, start_year=start_year)
+        self.obs = Obs(obs_path)
 
         # Get model inputs
-        self.mod = Model(species, project_path, start_year=start_year)
+        self.mod = Model(species, project_path)
 
         # Align model and obs, and change start/end dates, if needed
         if start_year:
             self.change_start_year(start_year)
         else:
-            # Align to obs dataset.
+            # Align to obs dataset by default
             self.change_start_year(int(self.obs.time[0]))
 
         if end_year:
             self.change_end_year(end_year)
         else:
-            #Align to obs dataset
+            #Align to obs dataset by default
             self.change_end_year(int(self.obs.time[-1])+1)
 
         # Reference run
@@ -104,6 +104,16 @@ class Invert(Inverse_method):
         
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
+
+
+    def run_spinup(self):
+
+        # Run model repeatedly for first year
+        nspin=5
+        for yi in range(nspin):
+            self.mod.run(nsteps=15*12)
+            self.mod.ic = self.mod.mf_restart[12, :]
+    
 
 
     def change_start_year(self, start_year):
