@@ -106,14 +106,30 @@ class Invert(Inverse_method):
         self.posterior = getattr(self, f"{method}_posterior")
 
 
-    def run_spinup(self):
+    def run_spinup(self, nspin=5):
+        """Spin model up
+
+        Spin up starts from values in initial conditions array (or zero if not specified)
+
+        Model is spin up for some number of years,
+        repeating the first year of emissions each time
+
+        Parameters
+        ----------
+        nspin : int, optional
+            number of years spinup, by default 5
+        """
 
         # Run model repeatedly for first year
-        nspin=5
+        print(f"Spinning up for {nspin} years...")
+
         for yi in range(nspin):
-            self.mod.run(nsteps=15*12)
-            self.mod.ic = self.mod.mf_restart[12, :]
+            self.mod.run(nsteps=15*12, verbose=False)
+            self.mod.ic = self.mod.mf_restart[11, :]
     
+        self.mod.run(verbose=False)
+
+        print("... done")
 
 
     def change_start_year(self, start_year):
