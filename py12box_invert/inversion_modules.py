@@ -105,15 +105,24 @@ class Inverse_method:
         # Calculate growth rate
         self.mod_posterior.annualglobalmfgrowthrate = np.gradient(self.mod_posterior.annualglobalmf)
         self.mod_posterior.annualmfgrowthrate = np.gradient(self.mod_posterior.annualmf, axis=0)
+        self.mod_posterior.annualglobalmfgrowthrateuncertainty = np.zeros_like(self.mod_posterior.annualglobalmf)
         # Global growth rate uncertainty
-        for i in range(1, len(inv.mod_posterior.annualglobalmfgrowthrateuncertainty)-1):
-            inv.mod_posterior.annualglobalmfgrowthrateuncertainty[i] = np.sqrt(np.sum(R_hat[(i-1)*48:(i)*48,(i-1)*48:(i)*48] + \
+        for i in range(1, len(self.mod_posterior.annualglobalmfgrowthrateuncertainty)-1):
+            self.mod_posterior.annualglobalmfgrowthrateuncertainty[i] = np.sqrt(np.sum(R_hat[(i-1)*48:(i)*48,(i-1)*48:(i)*48] + \
                                                                 R_hat[(i+1)*48:(i+2)*48,(i+1)*48:(i+2)*48] + \
                                                                 2*R_hat[(i-1)*48:(i)*48,(i+1)*48:(i+2)*48]))/(48*2)
-        inv.mod_posterior.annualglobalmfgrowthrateuncertainty[0] = np.sqrt(9*R_hat[:48,:48] + 16*R_hat[48:84,48:84] + \
-                                                                   R_hat[84:128, 84:128] + \
-                                                                   2*12*R_hat[:48,48:84] + 2*3*R_hat[:48,84:128] + \
-                                                                   2*4*R_hat[48:84,84:128])/(48*2)
+        self.mod_posterior.annualglobalmfgrowthrateuncertainty[0] = np.sqrt(np.sum(9*R_hat[:48,:48] + \
+                                                                           16*R_hat[48:96,48:96] + \
+                                                                           R_hat[96:144, 96:144] + \
+                                                                           2*12*R_hat[:48,48:96] + \
+                                                                           2*3*R_hat[:48,96:144] + \
+                                                                           2*4*R_hat[48:96,96:144]))/(48*2)
+        self.mod_posterior.annualglobalmfgrowthrateuncertainty[-1] = np.sqrt(np.sum(9*R_hat[-48:,-48:] + \
+                                                                           16*R_hat[-96:-48,-96:-48] + \
+                                                                           R_hat[-144:-96, -144:-96] + \
+                                                                           2*12*R_hat[-48:,-96:-48] + \
+                                                                           2*3*R_hat[-48:,-144:-96] + \
+                                                                           2*4*R_hat[-96:-48,-144:-96]))/(48*2)
         
     def rigby14(self):
         """Emissions growth-constrainted method of Rigby et al., 2011 and 2014
