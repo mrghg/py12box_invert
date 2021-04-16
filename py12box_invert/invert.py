@@ -51,32 +51,65 @@ class Invert(Inverse_method):
                         start_year = None,
                         end_year = None,
                         method = "rigby14",
-                        ic0=None, 
-                        emissions_sd=1., freq="monthly", MCMC=False,
-                        nit=10000, tune=None, burn=None):
+                        ic_years = 3):
+        """Set up 12-box model inversion class
+
+        Parameters
+        ----------
+        project_path : path-like object
+            Path to directory containing prior emissions and observations
+        species : str
+            Species name
+        obs_path : path-like object, optional
+            Path to obs-file if not in project path, by default None
+        start_year : flt, optional
+            First year to start the inversion, by default None
+        end_year : flt, optional
+            Final year to run inversion up until
+            (i.e., if you want to run through 2000, end_year=2001.), by default None
+        method : str, optional
+            Inverse method to choose. Must be in inversion_modules, by default "rigby14"
+        ic_years : int, optional
+            Number of years to pad the inversion before the first observation
+            in order to allow for some spinup/discard years.
+            Note that the emissions file must cover the implied period
+            (i.e. (year of first obs - ic_years) onwards), by default 5
+
+        Raises
+        ------
+        FileNotFoundError
+            If obs files not found
+        """
         
         # Get obs
         if not obs_path and not (project_path / f"{species}_obs.csv").exists():
-            raise Exception("No obs file given.")
+            raise FileNotFoundError("No obs file given.")
         elif (project_path / f"{species}_obs.csv").exists():
             obs_path = project_path / f"{species}_obs.csv"
         
-        self.obs = Obs(obs_path, start_year=start_year)
+        self.obs = Obs(obs_path)
 
         # Get model inputs
-        self.mod = Model(species, project_path, start_year=start_year)
+        self.mod = Model(species, project_path)
 
         # Align model and obs, and change start/end dates, if needed
+        if ic_years and start_year:
+            raise Exception("Can't have both a start_year and ic_year")
+
+        if ic_years:
+            start_year = int(self.obs.time[np.where(np.isfinite(self.obs.mf))[0][0]]) - \
+                ic_years
+
         if start_year:
             self.change_start_year(start_year)
         else:
-            # Align to obs dataset.
+            # Align to obs dataset by default
             self.change_start_year(int(self.obs.time[0]))
 
         if end_year:
             self.change_end_year(end_year)
         else:
-            #Align to obs dataset
+            #Align to obs dataset by default
             self.change_end_year(int(self.obs.time[-1])+1)
 
         # Reference run
@@ -104,6 +137,75 @@ class Invert(Inverse_method):
         
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
+
+
+    def run_spinup(self, nyears=5):
+        """Spin model up
+
+        Spin up starts from values in initial conditions array (or zero if not specified)
+
+        Model is spin up for some number of years,
+        repeating the first year of emissions each time
+
+        Parameters
+        ----------
+        nyears : int, optional
+            number of years spinup, by default 5
+        """
+
+        # Run model repeatedly for first year
+        print(f"Spinning up for {nyears} years...")
+
+        for yi in range(nyears):
+            self.mod.run(nsteps=15*12, verbose=False)
+            self.mod.ic = self.mod.mf_restart[11, :]
+    
+        self.mod.run(verbose=False)
+
+        print("... done")
+
+
+    def run_initial_conditions(self):
+        """Estimate initial conditions from prior fluxes
+
+        Use the prior fluxes and the model to predict the initial condition
+        N years before the first observation
+
+        """
+
+        # Find first timestep with finite obs
+        wh = np.where(np.isfinite(self.obs.mf))
+        first_obs_ti = wh[0][0]
+        first_obs_bi = wh[1][wh[0] == first_obs_ti] # this tells us which boxes were finite at this timestep
+
+        # Block average emissions for comparison with sensitivity matrix
+        x_a = self.mod.emissions.reshape(int(self.mod.emissions.shape[0]/self.sensitivity.freq_months), 
+                self.sensitivity.freq_months,
+                self.mod.emissions.shape[1]).mean(axis=1)
+        x_a = x_a.flatten()
+
+        # Work out the mole fractions due to these emissions
+        mf_prior = (self.sensitivity.sensitivity @ x_a).reshape(self.obs.mf.shape)
+
+        # If we go back in time, work out how far mf should have been from first obs
+        # according to the prior emissions
+        mf_offset = np.mean(mf_prior[first_obs_ti, first_obs_bi])
+        
+        # Work out how far initial conditions are from first obs
+        ic_offset = np.mean(self.obs.mf[first_obs_ti, first_obs_bi] - \
+                self.mod.ic[first_obs_bi])
+
+        # Adjust initial conditions to reflect these offsets
+        self.mod.ic += ic_offset - mf_offset
+
+        # If any values are below zero, reset
+        self.mod.ic[self.mod.ic < 1e-12] = 1e-12
+
+        # re-run model from these initial conditions
+        self.mod.run(verbose=False)
+
+        # Need to overwrite prior model
+        self.mod_prior = Prior_model(self.mod)
 
 
     def change_start_year(self, start_year):
