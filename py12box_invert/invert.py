@@ -104,7 +104,10 @@ class Invert(Inverse_method):
         
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
-
+        
+        # Calculate annual totals and mf with uncertainties
+        self.annualmf = getattr(self, f"{method}_annualmf")
+        self.annualemissions = getattr(self, f"{method}_annualemissions")
 
     def change_start_year(self, start_year):
         """Simple wrapper for changing start year for obs and model
