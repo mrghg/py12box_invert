@@ -41,36 +41,16 @@ class Inverse_method:
         y_hat = self.sensitivity.sensitivity @ self.mat.x_hat + self.mod_prior.mf[:, :4].flatten()
         self.mod_posterior.mf = y_hat.reshape(int(len(y_hat)/4), 4)
         R_hat = self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T
-        self.mod_posterior.mfuncertainty = np.sqrt(np.diag(R_hat)).reshape(int(len(y_hat)/4), 4)
-        
-        # Growth rate
-        self.mod_posterior.mfgrowthrate = np.gradient(self.mod_posterior.mf, axis=1)
-        self.mod_posterior.mfgrowthrateuncertainty = np.zeros_like(self.mod_posterior.mfgrowthrate)
-        for ti in range(1,int(self.mod_posterior.mfgrowthrate.shape[0] - 1)):
-            for bi in range(4):
-                self.mod_posterior.mfgrowthrateuncertainty[ti, bi] = np.sqrt(R_hat[bi+(ti*4)-4,bi+(ti*4)-4] + \
-                                                               R_hat[bi+(ti*4)+4,bi+(ti*4)+4] + \
-                                                               2*R_hat[bi+(ti*4)-4,bi+(ti*4)+4]) / 2
-        # Need to deal with finite differencing at boundares 
-        # (see https://github.com/numpy/numpy/commit/332d628744a0670234585053dbe32a3e82e0c4db)
-        for bi in range(4):
-            self.mod_posterior.mfgrowthrateuncertainty[0, bi] = np.sqrt(9*R_hat[bi,bi] + \
-                                                                16*R_hat[bi+4,bi+4] + \
-                                                                R_hat[bi+8,bi+8] + 2*12*R_hat[bi, bi+4] + \
-                                                                2*3*R_hat[bi, bi+8] + 2*4*R_hat[bi+4, bi+8])/2
-            self.mod_posterior.mfgrowthrateuncertainty[-1, bi] = np.sqrt(9*R_hat[-4+bi,-4+bi] + \
-                                                                16*R_hat[-8+bi,-8+bi] + \
-                                                                R_hat[-16+bi,-16+bi] + 2*12*R_hat[-4+bi, -8+bi] + \
-                                                                2*3*R_hat[-4+bi, -16+bi] + 2*4*R_hat[-8+bi, -16+bi])/2
+        self.mod_posterior.mfsd = np.sqrt(np.diag(R_hat)).reshape(int(len(y_hat)/4), 4)
         
         # Posterior emissions
         freq_months = self.sensitivity.freq_months
         self.mod_posterior.emissions = self.mod_prior.emissions.copy()
-        self.mod_posterior.emissionsuncertainty = np.zeros_like(self.mod_posterior.emissions)
+        self.mod_posterior.emissionssd = np.zeros_like(self.mod_posterior.emissions)
         for ti in range(int(self.mod_prior.emissions.shape[0]/freq_months)):
             for bi in range(4):
                 self.mod_posterior.emissions[ti*freq_months:(ti+1)*freq_months, bi] += self.mat.x_hat[4*ti + bi] 
-                self.mod_posterior.emissionsuncertainty[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(self.mat.P_hat[4*ti + bi, 4*ti + bi])
+                self.mod_posterior.emissionssd[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(self.mat.P_hat[4*ti + bi, 4*ti + bi])
     
     def analytical_gaussian_annualemissions(self):
         """
@@ -80,9 +60,9 @@ class Inverse_method:
         n_months = int(12./self.sensitivity.freq_months)
         self.mod_posterior.annualemissions = np.add.reduceat(self.mod_posterior.emissions.sum(axis=1), 
                                                              np.arange(0, len(self.mod_posterior.emissions.sum(axis=1)), 12))/12
-        self.mod_posterior.annualemissionsuncertainty = np.zeros_like(self.mod_posterior.annualemissions)
-        for i in np.arange(len(self.mod_posterior.annualemissionsuncertainty)):
-            self.mod_posterior.annualemissionsuncertainty[i] = np.sqrt(self.mat.P_hat[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2)
+        self.mod_posterior.annualemissionssd = np.zeros_like(self.mod_posterior.annualemissions)
+        for i in np.arange(len(self.mod_posterior.annualemissionssd)):
+            self.mod_posterior.annualemissionssd[i] = np.sqrt(self.mat.P_hat[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2)
 
             
     def analytical_gaussian_annualmf(self):
@@ -93,36 +73,15 @@ class Inverse_method:
         self.mod_posterior.annualmf = np.add.reduceat(self.mod_posterior.mf, np.arange(0,len(self.mod.time), 12), axis=0)/12.
         self.mod_posterior.annualglobalmf = self.mod_posterior.annualmf.copy().mean(axis=1)
         R_hat = self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T
-        self.mod_posterior.annualmfuncertainty = np.zeros_like(self.mod_posterior.annualmf)
-        self.mod_posterior.annualglobalmfuncertainty = np.zeros_like(self.mod_posterior.annualglobalmf)
+        self.mod_posterior.annualmfsd = np.zeros_like(self.mod_posterior.annualmf)
+        self.mod_posterior.annualglobalmfsd = np.zeros_like(self.mod_posterior.annualglobalmf)
         for i in range(len(self.mod_posterior.annualglobalmf)):
-            self.mod_posterior.annualglobalmfuncertainty[i] = np.sqrt(R_hat[i*48:(i+1)*48].sum()/48**2)
+            self.mod_posterior.annualglobalmfsd[i] = np.sqrt(R_hat[i*48:(i+1)*48].sum()/48**2)
         for bi in range(4):
             R_hat_bx = R_hat[bi::4,bi::4]
             for i in range(self.mod_posterior.annualglobalmf.shape[0]):
-                self.mod_posterior.annualmfuncertainty[i,bi] = np.sqrt(R_hat_bx[i*12:(i+1)*12].sum()/12**2)
+                self.mod_posterior.annualmfsd[i,bi] = np.sqrt(R_hat_bx[i*12:(i+1)*12].sum()/12**2)
         
-        # Calculate growth rate
-        self.mod_posterior.annualglobalmfgrowthrate = np.gradient(self.mod_posterior.annualglobalmf)
-        self.mod_posterior.annualmfgrowthrate = np.gradient(self.mod_posterior.annualmf, axis=0)
-        self.mod_posterior.annualglobalmfgrowthrateuncertainty = np.zeros_like(self.mod_posterior.annualglobalmf)
-        # Global growth rate uncertainty
-        for i in range(1, len(self.mod_posterior.annualglobalmfgrowthrateuncertainty)-1):
-            self.mod_posterior.annualglobalmfgrowthrateuncertainty[i] = np.sqrt(np.sum(R_hat[(i-1)*48:(i)*48,(i-1)*48:(i)*48] + \
-                                                                R_hat[(i+1)*48:(i+2)*48,(i+1)*48:(i+2)*48] + \
-                                                                2*R_hat[(i-1)*48:(i)*48,(i+1)*48:(i+2)*48]))/(48*2)
-        self.mod_posterior.annualglobalmfgrowthrateuncertainty[0] = np.sqrt(np.sum(9*R_hat[:48,:48] + \
-                                                                           16*R_hat[48:96,48:96] + \
-                                                                           R_hat[96:144, 96:144] + \
-                                                                           2*12*R_hat[:48,48:96] + \
-                                                                           2*3*R_hat[:48,96:144] + \
-                                                                           2*4*R_hat[48:96,96:144]))/(48*2)
-        self.mod_posterior.annualglobalmfgrowthrateuncertainty[-1] = np.sqrt(np.sum(9*R_hat[-48:,-48:] + \
-                                                                           16*R_hat[-96:-48,-96:-48] + \
-                                                                           R_hat[-144:-96, -144:-96] + \
-                                                                           2*12*R_hat[-48:,-96:-48] + \
-                                                                           2*3*R_hat[-48:,-144:-96] + \
-                                                                           2*4*R_hat[-96:-48,-144:-96]))/(48*2)
         
     def rigby14(self):
         """Emissions growth-constrainted method of Rigby et al., 2011 and 2014
