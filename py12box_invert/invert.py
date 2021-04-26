@@ -138,7 +138,10 @@ class Invert(Inverse_method, Plot):
         
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
-
+        
+        # Calculate annual totals and mf with uncertainties
+        self.annualmf = getattr(self, f"{method}_annualmf")
+        self.annualemissions = getattr(self, f"{method}_annualemissions")
 
     def run_spinup(self, nyears=5):
         """Spin model up

@@ -107,7 +107,7 @@ class Obs:
             self.mf_uncertainty = self.mf_uncertainty[:ti, :]
         elif float(end_year) > self.time[-1]:
             # Pad with nans
-            new_time = arange(self.time[-1] + 1/12, end_year, step=1/12)
+            new_time = arange(self.time[-1] + 1/12, end_year - 1/12, step=1/12)
             self.time = hstack([self.time, new_time])
             nanarray = zeros((len(new_time), 4))*nan
             self.mf = vstack([self.mf, nanarray])
