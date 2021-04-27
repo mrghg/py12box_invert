@@ -7,6 +7,7 @@ from multiprocessing import Pool
 import importlib
 
 from py12box_invert.obs import Obs
+from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
 from py12box.model import Model, core
 #from py12box.core import flux_sensitivity
@@ -44,7 +45,7 @@ class Sensitivity:
     pass
 
 
-class Invert(Inverse_method):
+class Invert(Inverse_method, Plot):
 
     def __init__(self, project_path, species,
                         obs_path=None, 
