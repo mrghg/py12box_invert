@@ -66,16 +66,17 @@ class Inverse_method:
             self.mod_posterior.annualemissionssd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2 + \
                                                       self.lifetime_var()[i])
 
-
             
     def analytical_gaussian_annualmf(self):
         """
-        Calculate annual global and hemispheric mf with uncertianties
+        Calculate annual global and semi-hemispheric mf with uncertianties
         """
         # Calculate annual mf in each semi-hemisphere and globally with uncertainties
         self.mod_posterior.annualmf = np.add.reduceat(self.mod_posterior.mf, np.arange(0,len(self.mod.time), 12), axis=0)/12.
         self.mod_posterior.annualglobalmf = self.mod_posterior.annualmf.copy().mean(axis=1)
-        R_hat = self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T
+#         R_hat = self.sensitivity.sensitivity @ (self.mat.P_hat + self.modeltransport_var() + np.diag(self.lifetime_var(mf=True))) @ self.sensitivity.sensitivity.T
+        R_hat = (self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T)*1.02**2 #2% calibration error
+
         self.mod_posterior.annualmfsd = np.zeros_like(self.mod_posterior.annualmf)
         self.mod_posterior.annualglobalmfsd = np.zeros_like(self.mod_posterior.annualglobalmf)
         for i in range(len(self.mod_posterior.annualglobalmf)):
@@ -247,17 +248,12 @@ class Inverse_method:
         
         self.analytical_gaussian_annualmf()
         
-#     def add_emissions_uncertainty(self):
-#         """
-#         Follow the approach of Rigby et al 2014 where uncertainty is added post hoc 
-#         to the emissions and mole fraction. This uncertainty is due to model error 
-#         and lifetime uncertainty. A Monte Carlo approach is taken for mf.
-#         """
-    def lifetime_var(self):
+    def lifetime_var(self, mf=False):
         """
-        Emissions uncertainty stddev added due to lifetime uncertainty.
+        Emissions uncertainty variance added due to lifetime uncertainty.
         1/Lifetime 1sd uncertainties (in %) from Rigby et al 2014 / SPARC 2013
         sig_emissions = B*sig_1/lifetime
+        Assumed to be independent year-to-year.
         """
         lifetime_uncertainty = {"CFC-11" : 0.10, "CFC-12": 0.20,"CFC-13" : 0.20, "CFC-113" : 0.20,
                                 "CFC-114" : 0.20,"CFC-115" : 0.20,"CCl4" : 0.20,"CH3CCl3" : 0.14,
@@ -266,11 +262,19 @@ class Inverse_method:
                                 "HFC-143a" : 0.19,"HFC-152a" : 0.15,"HFC-227ea" : 0.21,"HFC-236fa" : 0.21,
                                 "HFC-245fa" : 0.22,"HFC-365mfc" : 0.21,"SF6" : 0.0,"CF4" : 0.0,"C2F6" : 0.0,
                                 "C3F8" : 0.0,"NF3" : 0.0}
+        if self.mod.species not in lifetime_uncertainty.keys():
+            raise Exception("No lifetime uncertainty for species {}".format(self.mod.species))
         n_months = int(12./self.sensitivity.freq_months)
-        burden_mnth_sd = self.mod.burden.sum(axis=1)
-        burden_sd = np.zeros_like(self.mod_posterior.annualemissionssd)
-        for i in np.arange(len(self.mod_posterior.annualemissionssd)):
-            burden_sd[i] = burden_mnth_sd[(i*n_months):((i+1)*n_months)].mean()/1e9
+        if mf:
+            burden_sd = np.zeros(self.mat.P_hat.shape[0])
+            for i in range(int(self.mat.P_hat.shape[0]/4)):
+                for bx in range(4):
+                    burden_sd[(4*i)+bx] = self.mod.burden[(i*n_months):((i+1)*n_months),(bx%4)::4].sum()/1e9
+        else:
+            burden_sd = np.zeros_like(self.mod_posterior.annualemissionssd)
+            for i in range(len(self.mod_posterior.annualemissionssd)):
+                burden_sd[i] = self.mod.burden.sum(axis=1)[(i*n_months):((i+1)*n_months)].mean()/1e9
+            
 
         return (1/self.mod.steady_state_lifetime*lifetime_uncertainty[self.mod.species]*burden_sd)**2
 
@@ -279,5 +283,3 @@ class Inverse_method:
         Transport error translates to 1% of emissions uncertainty.
         """
         return self.mat.P_hat*0.01**2       
-
-        #return lifetime_sd() + modeltransport_sd()
