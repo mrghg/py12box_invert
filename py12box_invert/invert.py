@@ -111,7 +111,8 @@ class Invert(Inverse_method, Plot):
             self.change_end_year(end_year)
         else:
             #Align to obs dataset by default
-            self.change_end_year(int(self.obs.time[-1])+1)
+            self.change_end_year(int(self.obs.time[-1])+1-1/12)
+            end_year = self.obs.time[-1]
 
         # Reference run
         print("Model reference run...")
