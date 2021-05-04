@@ -44,6 +44,11 @@ class Sensitivity:
     """
     pass
 
+class Growth_rate:
+    """Empty class to store growth rates
+    """
+    pass
+
 
 class Invert(Inverse_method, Plot):
 
@@ -133,6 +138,9 @@ class Invert(Inverse_method, Plot):
 
         # Area to store sensitivity
         self.sensitivity = Sensitivity()
+        
+        #Area to store growth rate
+        self.growth_rate = Growth_rate()
 
         # Get inverse method
         self.run_inversion = getattr(self, method)
@@ -140,9 +148,12 @@ class Invert(Inverse_method, Plot):
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
         
-        # Calculate annual totals and mf with uncertainties
+        # Calculate annual emissions and mf with uncertainties
         self.annualmf = getattr(self, f"{method}_annualmf")
         self.annualemissions = getattr(self, f"{method}_annualemissions")
+        
+        # Calculate mf growth rate
+        self.growthrate = getattr(self, f"{method}_growthrate")
 
     def run_spinup(self, nyears=5):
         """Spin model up
