@@ -3,7 +3,7 @@ import pymc3 as pm
 import pandas as pd
 from scipy.optimize import minimize
 from py12box_invert.core import global_mf, hemis_mf, annual_means
-
+from py12box_invert.kz_filter import kz_filter
 
 class Inverse_method:
     """Inverse method modules
@@ -82,7 +82,43 @@ class Inverse_method:
             for i in range(self.mod_posterior.annualglobalmf.shape[0]):
                 self.mod_posterior.annualmfsd[i,bi] = np.sqrt(R_hat_bx[i*12:(i+1)*12].sum()/12**2)
         
+
+    def analytical_gaussian_growthrate(self, nsample=1000):
+        """
+        Calculate growth rates using KZ filter.
+        Monte Carlo sample mfs from posterior predicted covariance.
         
+        Inputs:
+            nsample:
+                Number of Monte Carlo samples
+        """
+        L_hat = np.linalg.cholesky(self.mat.P_hat)
+        sample = self.sensitivity.sensitivity @ L_hat @ np.random.normal(size=(self.sensitivity.sensitivity.shape[1], nsample))
+        gr_array = np.zeros((len(self.mod_posterior.mf[6:-6,0]), 4, nsample))
+        gr_annual_array = np.zeros((len(self.mod_posterior.mf[12:-12:12,0]), 4, nsample))
+        gr = np.zeros((len(self.mod_posterior.mf[6:-6,0]), 4))
+        gr_annual = np.zeros((len(self.mod_posterior.mf[12:-12:12,0]), 4))
+
+        # Just x12 to convert from per months to per year
+        for si in range(nsample):
+            for bx in range(4):
+                gr_diff = np.diff(self.mod_posterior.mf[:,bx]+sample[bx::4,si])
+                gr_array[:,bx,si] = kz_filter(gr_diff, 12, 1)*12
+                gr_annual_array[:,bx,si] = np.mean(gr_array[6:-6,bx,si].reshape(-1, 12), axis=1)
+        gr_sd = np.std(gr_array, axis=2)
+        gr_annual_sd  = np.std(gr_annual_array, axis=2)
+        for bx in range(4):
+            gr_diff = np.diff(self.mod_posterior.mf[:,bx])
+            gr[:,bx] = kz_filter(gr_diff, 12, 1)*12
+            gr_annual[:,bx] = np.mean(gr[6:-6, bx].reshape(-1, 12), axis=1)
+
+        self.growth_rate.time = self.mod.time[6:-6]
+        self.growth_rate.mf = gr
+        self.growth_rate.mfsd = gr_sd
+        self.growth_rate.annualmf = gr_annual
+        self.growth_rate.annualmfsd = gr_annual_sd        
+        
+    
     def rigby14(self):
         """Emissions growth-constrainted method of Rigby et al., 2011 and 2014
         """
@@ -203,6 +239,13 @@ class Inverse_method:
         """
         
         self.analytical_gaussian_annualmf()
+     
+    def rigby14_growthrate(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_growthrate()
     
     def iterative_rigby14_posterior(self):
         """The same as a standard analytical Gaussian
@@ -224,6 +267,13 @@ class Inverse_method:
         
         self.analytical_gaussian_annualmf()
 
+    def iterative_rigby14_growthrate(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_growthrate()
+
     def empirical_bayes_posterior(self):
         """The same as a standard analytical Gaussian
         """
@@ -244,7 +294,18 @@ class Inverse_method:
         
         self.analytical_gaussian_annualmf()
         
+    def empirical_bayes_growthrate(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_growthrate()
+        
 
+        
+        
+        
+        
         
         
 
