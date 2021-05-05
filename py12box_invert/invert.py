@@ -49,6 +49,11 @@ class Growth_rate:
     """
     pass
 
+class Species:
+    """Empty class to store species info
+    """
+    pass
+
 
 class Invert(Inverse_method, Plot):
 
@@ -86,6 +91,9 @@ class Invert(Inverse_method, Plot):
         FileNotFoundError
             If obs files not found
         """
+        # Store name of species
+        self.species = Species()
+        self.species = species
         
         # Get obs
         if not obs_path and not (project_path / f"{species}_obs.csv").exists():
