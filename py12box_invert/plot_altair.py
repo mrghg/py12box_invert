@@ -90,11 +90,9 @@ class Plot:
             y=alt.Y("Model:Q", title=""),
             color="Box:N",
             opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
-            )
+        )
 
-        mf_upper = alt.layer(obs_plot, error_bars, mod_plot).add_selection(
-            selection
-            ).properties(
+        mf_upper = alt.layer(obs_plot, error_bars, mod_plot).properties(
                 width=600,
                 height=400).interactive()
         
@@ -102,13 +100,13 @@ class Plot:
         # Plot the growth rate data
         #
         data_gr = pd.concat([pd.DataFrame(
-        data={"Date": dec_to_month(self.growth_rate.time),
-            "Box": box_name[bi],
-            "GR": self.growth_rate.mf[:, bi],
-            "GR_uncertainty": self.growth_rate.mfsd[:, bi],
-            "zero_line": np.zeros(len(self.growth_rate.time))}
-        ) for bi in range(4)])
-        
+            data={"Date": dec_to_month(self.growth_rate.time),
+                "Box": box_name[bi],
+                "GR": self.growth_rate.mf[:, bi],
+                "GR_uncertainty": self.growth_rate.mfsd[:, bi],
+                "zero_line": np.zeros(len(self.growth_rate.time))}
+            ) for bi in range(4)])
+            
         ymin_gr=data_gr["GR"].min()
         ymax_gr=data_gr["GR"].max()
 
@@ -121,7 +119,8 @@ class Plot:
         # Plot the zero line for clarity
         gr_zeros = base_gr.mark_line(color="#000000").encode(
                 x=alt.X("Date:T"),
-                y=alt.Y("zero_line"))
+                y=alt.Y("zero_line")
+                )
 
         # Plot the growth rate
         gr_plot = base_gr.mark_line().encode( #mark_point(filled=True, size=5).encode(
@@ -133,7 +132,7 @@ class Plot:
                 color="Box:N", 
                 opacity=alt.condition(selection, alt.value(1), alt.value(0.1)),
                 tooltip=["Date", "GR"]
-        )
+                )
 
         # Add error shading
         gr_error_bars = base_gr.mark_area().encode(
@@ -141,14 +140,13 @@ class Plot:
                 y=alt.Y("ymin_gr:Q", title=""),
                 y2="ymax_gr:Q",
                 color="Box:N",
-                opacity=alt.condition(selection, alt.value(0.4), alt.value(0.1)))
+                opacity=alt.condition(selection, alt.value(0.4), alt.value(0.1))
+                )
 
-
-        gr_lower = alt.layer(gr_zeros,gr_error_bars,gr_plot).add_selection(
-        selection, x_domain
-        ).properties(
+        gr_lower = alt.layer(gr_zeros,gr_error_bars,gr_plot).properties(
             width=600,
             height=150).interactive() 
 
-
-        alt.vconcat(mf_upper, gr_lower).display()  
+        alt.vconcat(mf_upper, gr_lower).add_selection(
+            selection, x_domain
+        ).display()  
