@@ -7,20 +7,18 @@ import numpy as np
 species = "CFC-11"
 project_path = Paths.data / f"example/{species}"
 
-inv = Invert(project_path, species)
+inv = Invert(project_path, species, 
+             start_year=2000., end_year=2010.,
+             ic_years=None)
 
 
 def test_alignment():
-
     assert np.allclose(inv.mod.time, inv.obs.time)
     
 
 def test_sensitivity():
 
     # Cut down model size to make this faster
-
-    inv.change_start_year(2000.)
-    inv.change_end_year(2010.)
     
     # Update prior model, to reflect changes in start and end date
     inv.mod.run()

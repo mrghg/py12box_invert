@@ -44,6 +44,16 @@ class Sensitivity:
     """
     pass
 
+class Growth_rate:
+    """Empty class to store growth rates
+    """
+    pass
+
+class Species:
+    """Empty class to store species info
+    """
+    pass
+
 
 class Invert(Inverse_method, Plot):
 
@@ -81,6 +91,9 @@ class Invert(Inverse_method, Plot):
         FileNotFoundError
             If obs files not found
         """
+        # Store name of species
+        self.species = Species()
+        self.species = species
         
         # Get obs
         if not obs_path and not (project_path / f"{species}_obs.csv").exists():
@@ -111,7 +124,7 @@ class Invert(Inverse_method, Plot):
             self.change_end_year(end_year)
         else:
             #Align to obs dataset by default
-            self.change_end_year(int(self.obs.time[-1])+1-1/12)
+            self.change_end_year(int(self.obs.time[-1])+1)
             end_year = self.obs.time[-1]
 
         # Reference run
@@ -133,6 +146,9 @@ class Invert(Inverse_method, Plot):
 
         # Area to store sensitivity
         self.sensitivity = Sensitivity()
+        
+        #Area to store growth rate
+        self.growth_rate = Growth_rate()
 
         # Get inverse method
         self.run_inversion = getattr(self, method)
@@ -140,9 +156,12 @@ class Invert(Inverse_method, Plot):
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
         
-        # Calculate annual totals and mf with uncertainties
+        # Calculate annual emissions and mf with uncertainties
         self.annualmf = getattr(self, f"{method}_annualmf")
         self.annualemissions = getattr(self, f"{method}_annualemissions")
+        
+        # Calculate mf growth rate
+        self.growthrate = getattr(self, f"{method}_growthrate")
 
     def run_spinup(self, nyears=5):
         """Spin model up
@@ -237,7 +256,7 @@ class Invert(Inverse_method, Plot):
         """
 
         self.obs.change_end_year(end_year)
-        self.mod.change_end_year(end_year)
+        self.mod.change_end_year(end_year-1/12)
         #TODO: Add sensitivity?
 
 
