@@ -124,7 +124,7 @@ class Invert(Inverse_method, Plot):
             self.change_end_year(end_year)
         else:
             #Align to obs dataset by default
-            self.change_end_year(int(self.obs.time[-1])+1-1/12)
+            self.change_end_year(int(self.obs.time[-1])+1)
             end_year = self.obs.time[-1]
 
         # Reference run
@@ -256,7 +256,7 @@ class Invert(Inverse_method, Plot):
         """
 
         self.obs.change_end_year(end_year)
-        self.mod.change_end_year(end_year)
+        self.mod.change_end_year(end_year-1/12)
         #TODO: Add sensitivity?
 
 
