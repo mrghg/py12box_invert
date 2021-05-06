@@ -84,7 +84,7 @@ class Invert(Inverse_method, Plot):
             Number of years to pad the inversion before the first observation
             in order to allow for some spinup/discard years.
             Note that the emissions file must cover the implied period
-            (i.e. (year of first obs - ic_years) onwards), by default 5
+            (i.e. (year of first obs - ic_years) onwards), by default 3
 
         Raises
         ------
