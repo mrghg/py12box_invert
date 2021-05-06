@@ -1,6 +1,7 @@
 import numpy as np
 import pymc3 as pm
 import pandas as pd
+import json
 from scipy.optimize import minimize
 from py12box_invert.core import global_mf, hemis_mf, annual_means
 from py12box_invert.kz_filter import kz_filter
@@ -52,19 +53,27 @@ class Inverse_method:
                 self.mod_posterior.emissions[ti*freq_months:(ti+1)*freq_months, bi] += self.mat.x_hat[4*ti + bi] 
                 self.mod_posterior.emissionssd[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(self.mat.P_hat[4*ti + bi, 4*ti + bi])
     
-    def analytical_gaussian_annualemissions(self):
+    def analytical_gaussian_annualemissions(self, lifetime_err_path=None):
         """
         Calculate annual total annual emissions and its uncertaity
-        """        
+        Inputs:
+            lifetime_err_path : str, optional
+                Path to the JSON file containing the inverse lifetime error as a decimal 
+                fraction (e.g. "inverse_lifetime_error":[{"CFC-11:0.1"}] for 10%
+                uncertainty in the lifetime). The error is then added to the posterior
+                emissions uncertainty. Ignored if set to None (default).
+        """ 
         n_months = int(12./self.sensitivity.freq_months)
         self.mod_posterior.annualemissions = np.add.reduceat(self.mod_posterior.emissions.sum(axis=1), 
                                                              np.arange(0, len(self.mod_posterior.emissions.sum(axis=1)), 12))/12
         self.mod_posterior.annualemissionssd = np.zeros_like(self.mod_posterior.annualemissions)
         R_expand = self.mat.P_hat + self.modeltransport_var()
         for i in np.arange(len(self.mod_posterior.annualemissionssd)):
-            #self.mod_posterior.annualemissionssd[i] = np.sqrt(self.mat.P_hat[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2)
-            self.mod_posterior.annualemissionssd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2 + \
-                                                      self.lifetime_var()[i])
+            if lifetime_err_path:
+                self.mod_posterior.annualemissionssd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2 + \
+                                                      self.lifetime_var(lifetime_err_path)[i])
+            else:
+                self.mod_posterior.annualemissionssd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2) 
 
             
     def analytical_gaussian_annualmf(self):
@@ -74,7 +83,6 @@ class Inverse_method:
         # Calculate annual mf in each semi-hemisphere and globally with uncertainties
         self.mod_posterior.annualmf = np.add.reduceat(self.mod_posterior.mf, np.arange(0,len(self.mod.time), 12), axis=0)/12.
         self.mod_posterior.annualglobalmf = self.mod_posterior.annualmf.copy().mean(axis=1)
-#         R_hat = self.sensitivity.sensitivity @ (self.mat.P_hat + self.modeltransport_var() + np.diag(self.lifetime_var(mf=True))) @ self.sensitivity.sensitivity.T
         R_hat = (self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T)*1.02**2 #2% calibration error
 
         self.mod_posterior.annualmfsd = np.zeros_like(self.mod_posterior.annualmf)
@@ -225,17 +233,18 @@ class Inverse_method:
         
         
     def rigby14_posterior(self):
-        """The same as a standard analytical Gaussian
+        """
+        The same as a standard analytical Gaussian
         """
 
         self.analytical_gaussian_posterior()
         
-    def rigby14_annualemissions(self):
+    def rigby14_annualemissions(self, lifetime_err_path=None):
         """
         The same as a standard analytical Gaussian
         """
-        
-        self.analytical_gaussian_annualemissions()
+
+        self.analytical_gaussian_annualemissions(lifetime_err_path)
         
     def rigby14_annualmf(self):
         """
@@ -257,12 +266,12 @@ class Inverse_method:
 
         self.analytical_gaussian_posterior()
         
-    def iterative_rigby14_annualemissions(self):
+    def iterative_rigby14_annualemissions(self, lifetime_err_path=None):
         """
         The same as a standard analytical Gaussian
         """
         
-        self.analytical_gaussian_annualemissions()
+        self.analytical_gaussian_annualemissions(lifetime_err_path)
         
     def iterative_rigby14_annualmf(self):
         """
@@ -284,12 +293,12 @@ class Inverse_method:
 
         self.analytical_gaussian_posterior()
         
-    def empirical_bayes_annualemissions(self):
+    def empirical_bayes_annualemissions(self, lifetime_err_path=None):
         """
         The same as a standard analytical Gaussian
         """
         
-        self.analytical_gaussian_annualemissions()
+        self.analytical_gaussian_annualemissions(lifetime_err_path)
         
     def empirical_bayes_annualmf(self):
         """
@@ -306,34 +315,30 @@ class Inverse_method:
         self.analytical_gaussian_growthrate()
         
 
-    def lifetime_var(self, mf=False):
+    def lifetime_var(self, lifetime_err_path):
         """
         Emissions uncertainty variance added due to lifetime uncertainty.
         1/Lifetime 1sd uncertainties (in %) from Rigby et al 2014 / SPARC 2013
         sig_emissions = B*sig_1/lifetime
         Assumed to be independent year-to-year.
+        
+        Inputs:
+            lifetime_err_path : str, optional
+                Path to the JSON file containing the inverse lifetime error as a decimal 
+                fraction (e.g. "inverse_lifetime_error":[{"CFC-11:0.1"}] for 10%
+                uncertainty in the lifetime). The error is then added to the posterior
+                emissions uncertainty. Ignored if set to None (default).
         """
-        lifetime_uncertainty = {"CFC-11" : 0.10, "CFC-12": 0.20,"CFC-13" : 0.20, "CFC-113" : 0.20,
-                                "CFC-114" : 0.20,"CFC-115" : 0.20,"CCl4" : 0.20,"CH3CCl3" : 0.14,
-                                "HCFC-22" : 0.16,"HCFC-141b" : 0.15,"HCFC-142b" : 0.20,"HCFC-124" : 0.20,
-                                "HFC-23" : 0.21,"HFC-32" : 0.17,"HFC-125" : 0.17,"HFC-134a" : 0.18,
-                                "HFC-143a" : 0.19,"HFC-152a" : 0.15,"HFC-227ea" : 0.21,"HFC-236fa" : 0.21,
-                                "HFC-245fa" : 0.22,"HFC-365mfc" : 0.21,"SF6" : 0.0,"CF4" : 0.0,"C2F6" : 0.0,
-                                "C3F8" : 0.0,"NF3" : 0.0}
+        with open(lifetime_err_path) as f:
+            lt_err_data = json.load(f)
+        lifetime_uncertainty = lt_err_data["inverse_lifetime_error"]
         if self.mod.species not in lifetime_uncertainty.keys():
             raise Exception("No lifetime uncertainty for species {}".format(self.mod.species))
         n_months = int(12./self.sensitivity.freq_months)
-        if mf:
-            burden_sd = np.zeros(self.mat.P_hat.shape[0])
-            for i in range(int(self.mat.P_hat.shape[0]/4)):
-                for bx in range(4):
-                    burden_sd[(4*i)+bx] = self.mod.burden[(i*n_months):((i+1)*n_months),(bx%4)::4].sum()/1e9
-        else:
-            burden_sd = np.zeros_like(self.mod_posterior.annualemissionssd)
-            for i in range(len(self.mod_posterior.annualemissionssd)):
-                burden_sd[i] = self.mod.burden.sum(axis=1)[(i*n_months):((i+1)*n_months)].mean()/1e9
+        burden_sd = np.zeros_like(self.mod_posterior.annualemissionssd)
+        for i in range(len(self.mod_posterior.annualemissionssd)):
+            burden_sd[i] = self.mod.burden.sum(axis=1)[(i*n_months):((i+1)*n_months)].mean()/1e9
             
-
         return (1/self.mod.steady_state_lifetime*lifetime_uncertainty[self.mod.species]*burden_sd)**2
 
     def modeltransport_var(self):
