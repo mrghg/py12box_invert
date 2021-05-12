@@ -150,3 +150,40 @@ class Plot:
         alt.vconcat(mf_upper, gr_lower).add_selection(
             selection, x_domain
         ).display()  
+        
+        
+        
+    def plot_emissions(self):
+        """
+        Plot emissions using altair.
+        """
+        data = pd.DataFrame(
+                data={"Date": dec_to_month(self.mod.time[::12]),
+                    "Emissions": self.mod_posterior.annualemissions,
+                    "Emissions_uncertainty":self.mod_posterior.annualemissionssd}
+                )
+
+        base = alt.Chart(data).transform_calculate(
+            ymin="datum.Emissions-datum.Emissions_uncertainty",
+            ymax="datum.Emissions+datum.Emissions_uncertainty"
+        )
+
+        line = alt.Chart(data).mark_line().encode(
+            x='Date:T',
+            y='Emissions:Q'
+        )
+
+
+        em_error_bars = base.mark_area(opacity=0.3).encode(
+            x="Date:T",
+            y=alt.Y("ymin:Q", title=f"{self.species} Emissions Gg/yr"),
+            y2="ymax:Q",
+            )
+
+        #em_error_bars + line
+        # Put the five layers into a chart and bind the data
+        alt.layer(
+            em_error_bars, line
+        ).properties(
+            width=600, height=300
+        ).interactive().display()
