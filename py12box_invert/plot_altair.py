@@ -158,32 +158,97 @@ class Plot:
         Plot emissions using altair.
         """
         data = pd.DataFrame(
+        data={"Date": dec_to_month(self.mod.time[::12]),
+            "Emissions": self.mod_posterior.annualemissions}
+        )
+        data = data.set_index('Date')
+
+        data_err = pd.DataFrame(
                 data={"Date": dec_to_month(self.mod.time[::12]),
                     "Emissions": self.mod_posterior.annualemissions,
                     "Emissions_uncertainty":self.mod_posterior.annualemissionssd}
                 )
 
-        base = alt.Chart(data).transform_calculate(
+        base = alt.Chart(data_err).transform_calculate(
             ymin="datum.Emissions-datum.Emissions_uncertainty",
             ymax="datum.Emissions+datum.Emissions_uncertainty"
         )
 
-        line = alt.Chart(data).mark_line().encode(
+        source = data.reset_index().melt('Date', var_name='Legend', value_name='y')
+        # Create a selection that chooses the nearest point & selects based on x-value
+        nearest = alt.selection(type='single', nearest=True, on='mouseover',
+                                fields=['Date'], empty='none')
+
+        # The basic line
+        line = alt.Chart(source).mark_line(interpolate='basis').encode(
             x='Date:T',
-            y='Emissions:Q'
+            y='y:Q',
+            color='Legend:N'
+        )
+        # Transparent selectors across the chart. This is what tells us
+        # the x-value of the cursor
+        selectors = alt.Chart(source).mark_point().encode(
+            x='Date:T',
+            opacity=alt.value(0),
+        ).add_selection(
+            nearest
         )
 
+        # Draw points on the line, and highlight based on selection
+        points = line.mark_point().encode(
+            opacity=alt.condition(nearest, alt.value(1), alt.value(0))
+        )
+
+        # Draw text labels near the points, and highlight based on selection
+        text = line.mark_text(align='left', dx=5, dy=-5).encode(
+            text=alt.condition(nearest, 'y:Q', alt.value(' '))
+        )
+
+        # Draw a rule at the location of the selection
+        rules = alt.Chart(source).mark_rule(color='gray').encode(
+            x='Date:T',
+        ).transform_filter(
+            nearest
+        )
 
         em_error_bars = base.mark_area(opacity=0.3).encode(
             x="Date:T",
-            y=alt.Y("ymin:Q", title=f"{self.species} Emissions Gg/yr"),
+            y=alt.Y("ymin:Q", title=f"{self.species} Emissions (Gg/yr)"),
             y2="ymax:Q",
             )
 
-        #em_error_bars + line
+
         # Put the five layers into a chart and bind the data
         alt.layer(
-            em_error_bars, line
+            line, selectors, points, rules, text,em_error_bars
         ).properties(
             width=600, height=300
-        ).interactive().display()
+        ).display()
+#         data = pd.DataFrame(
+#                 data={"Date": dec_to_month(self.mod.time[::12]),
+#                     "Emissions": self.mod_posterior.annualemissions,
+#                     "Emissions_uncertainty":self.mod_posterior.annualemissionssd}
+#                 )
+
+#         base = alt.Chart(data).transform_calculate(
+#             ymin="datum.Emissions-datum.Emissions_uncertainty",
+#             ymax="datum.Emissions+datum.Emissions_uncertainty"
+#         )
+
+#         line = alt.Chart(data).mark_line().encode(
+#             x='Date:T',
+#             y='Emissions:Q'
+#         )
+
+
+#         em_error_bars = base.mark_area(opacity=0.3).encode(
+#             x="Date:T",
+#             y=alt.Y("ymin:Q", title=f"{self.species} Emissions Gg/yr"),
+#             y2="ymax:Q",
+#             )
+
+#         alt.layer(
+#             em_error_bars, line
+#         ).properties(
+#             width=600, height=300
+#         ).interactive().display()
