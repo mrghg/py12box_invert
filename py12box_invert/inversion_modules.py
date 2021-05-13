@@ -149,6 +149,36 @@ class Inverse_method:
         self.mat.P_hat = np.linalg.inv(H.T @ R_inv @ H + D.T @ self.mat.P_inv @ D)
         self.mat.x_hat = self.mat.P_hat @ (H.T @ R_inv @ self.mat.y + D.T @ self.mat.P_inv @ self.mat.x_a)
         
+        
+    def rigby14_posterior(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+
+        self.analytical_gaussian_posterior()
+        
+    def rigby14_annualemissions(self, lifetime_err_path=None):
+        """
+        The same as a standard analytical Gaussian
+        """
+
+        self.analytical_gaussian_annualemissions(lifetime_err_path)
+        
+    def rigby14_annualmf(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_annualmf()
+     
+    def rigby14_growthrate(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_growthrate()
+
+
     def iterative_rigby14(self):
         """
         As rigby14 but optimises x_hat such that all values are >=0. 
@@ -183,7 +213,35 @@ class Inverse_method:
                 xout = xout0
         self.mat.x_hat = xout.x
         self.mat.P_hat = np.linalg.inv(H.T @ R_inv @ H + D.T @ self.mat.P_inv @ D)
+
+    def iterative_rigby14_posterior(self):
+        """The same as a standard analytical Gaussian
+        """
+
+        self.analytical_gaussian_posterior()
         
+    def iterative_rigby14_annualemissions(self, lifetime_err_path=None):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_annualemissions(lifetime_err_path)
+        
+    def iterative_rigby14_annualmf(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_annualmf()
+
+    def iterative_rigby14_growthrate(self):
+        """
+        The same as a standard analytical Gaussian
+        """
+        
+        self.analytical_gaussian_growthrate()
+
+
     def empirical_bayes(self):
         """
         As iterative_rigby14 but optimises an iid model uncertainty. 
@@ -230,62 +288,6 @@ class Inverse_method:
         self.mat.x_hat = xout.x[:-1]
         self.mat.P_hat = np.linalg.inv(H.T @ np.linalg.inv(R + np.diag(np.repeat(xout.x[-1], ny))) @ H + \
                                        D.T @ self.mat.P_inv @ D)
-        
-        
-    def rigby14_posterior(self):
-        """
-        The same as a standard analytical Gaussian
-        """
-
-        self.analytical_gaussian_posterior()
-        
-    def rigby14_annualemissions(self, lifetime_err_path=None):
-        """
-        The same as a standard analytical Gaussian
-        """
-
-        self.analytical_gaussian_annualemissions(lifetime_err_path)
-        
-    def rigby14_annualmf(self):
-        """
-        The same as a standard analytical Gaussian
-        """
-        
-        self.analytical_gaussian_annualmf()
-     
-    def rigby14_growthrate(self):
-        """
-        The same as a standard analytical Gaussian
-        """
-        
-        self.analytical_gaussian_growthrate()
-    
-    def iterative_rigby14_posterior(self):
-        """The same as a standard analytical Gaussian
-        """
-
-        self.analytical_gaussian_posterior()
-        
-    def iterative_rigby14_annualemissions(self, lifetime_err_path=None):
-        """
-        The same as a standard analytical Gaussian
-        """
-        
-        self.analytical_gaussian_annualemissions(lifetime_err_path)
-        
-    def iterative_rigby14_annualmf(self):
-        """
-        The same as a standard analytical Gaussian
-        """
-        
-        self.analytical_gaussian_annualmf()
-
-    def iterative_rigby14_growthrate(self):
-        """
-        The same as a standard analytical Gaussian
-        """
-        
-        self.analytical_gaussian_growthrate()
 
     def empirical_bayes_posterior(self):
         """The same as a standard analytical Gaussian
