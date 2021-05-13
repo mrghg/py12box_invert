@@ -13,8 +13,8 @@ from py12box.model import Model, core
 #from py12box.core import flux_sensitivity
 
 
-class Prior_model:
-    """Class to store some of the parameters from the prior model
+class Store_model:
+    """Class to store some of the parameters from a model run
 
     """
     def __init__(self, mod):
@@ -28,11 +28,7 @@ class Prior_model:
         
         # Model outputs
         self.mf = mod.mf.copy()
-
-class Posterior_model:
-    """Empty class to store posterior model
-    """
-    pass
+        self.burden = mod.burden.copy()
 
 class Matrices:
     """Empty class to store inversion matrices
@@ -134,15 +130,12 @@ class Invert(Inverse_method, Plot):
         # Store some inputs and outputs from prior model
         # TODO: Note that use of the change_start_date or Change_end_date methods
         # may cause the prior model to become mis-aligned. 
-        # To align, need to re-run model and then Prior_model step.
+        # To align, need to re-run model and then Store_model step.
         # Check if this is a problem.
-        self.mod_prior = Prior_model(self.mod)
+        self.mod_prior = Store_model(self.mod)
 
         # Area to store inversion matrices
         self.mat = Matrices()
-
-        # Area to store posterior model
-        self.mod_posterior = Posterior_model()
 
         # Area to store sensitivity
         self.sensitivity = Sensitivity()
@@ -162,6 +155,8 @@ class Invert(Inverse_method, Plot):
         
         # Calculate mf growth rate
         self.growthrate = getattr(self, f"{method}_growthrate")
+
+        self.calc_ensemble = getattr(self, "analytical_gaussian_posterior_ensemble")
 
     def run_spinup(self, nyears=5):
         """Spin model up
@@ -229,7 +224,7 @@ class Invert(Inverse_method, Plot):
         self.mod.run(verbose=False)
 
         # Need to overwrite prior model
-        self.mod_prior = Prior_model(self.mod)
+        self.mod_prior = Store_model(self.mod)
 
 
     def change_start_year(self, start_year):
@@ -279,7 +274,7 @@ class Invert(Inverse_method, Plot):
         if not np.allclose(self.mod.time, self.mod_prior.time):
             raise Exception('''Prior model has become mis-aligned with model,
                                 probably because start or end dates have been changed.
-                                Before calculating sensitivity, re-run model and store Prior_model''')
+                                Before calculating sensitivity, re-run model and store Store_model''')
 
         if not np.allclose(self.mod.time, self.obs.time):
             raise Exception('''Model has become mis-aligned with obs,
