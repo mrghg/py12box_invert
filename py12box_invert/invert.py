@@ -1,15 +1,11 @@
 import numpy as np
-from copy import deepcopy
-from tqdm import tqdm
-from bisect import bisect
 from math import ceil
 from multiprocessing import Pool
-import importlib
 
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
-from py12box_invert.utils import Store_model
+from py12box_invert.utils import Store_model, aggregate_outputs, sensitivity_section
 from py12box.model import Model, core
 
 #from py12box.core import flux_sensitivity
@@ -24,15 +20,20 @@ class Sensitivity:
     """
     pass
 
-class Growth_rate:
-    """Empty class to store growth rates
+class Outputs:
+    """Empty class to store outputs
     """
     pass
 
-class Species:
-    """Empty class to store species info
-    """
-    pass
+# class Growth_rate:
+#     """Empty class to store growth rates
+#     """
+#     pass
+
+# class Species:
+#     """Empty class to store species info
+#     """
+#     pass
 
 
 class Invert(Inverse_method, Plot):
@@ -72,7 +73,6 @@ class Invert(Inverse_method, Plot):
             If obs files not found
         """
         # Store name of species
-        self.species = Species()
         self.species = species
         
         # Get obs
@@ -124,22 +124,24 @@ class Invert(Inverse_method, Plot):
         # Area to store sensitivity
         self.sensitivity = Sensitivity()
         
-        #Area to store growth rate
-        self.growth_rate = Growth_rate()
+        # #Area to store growth rate
+        # self.growth_rate = Growth_rate()
 
-        # Get inverse method
+        # Attach inverse method
         self.run_inversion = getattr(self, method)
         
-        # Get method to process posterior
+        # Attach methods to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
         self.posterior_ensemble = getattr(self, f"{method}_posterior_ensemble")
 
-        # Calculate annual emissions and mf with uncertainties
-        self.annualmf = getattr(self, f"{method}_annualmf")
-        self.annualemissions = getattr(self, f"{method}_annualemissions")
+        self.outputs = Outputs()
+
+        # # Calculate annual emissions and mf with uncertainties
+        # self.annualmf = getattr(self, f"{method}_annualmf")
+        # self.annualemissions = getattr(self, f"{method}_annualemissions")
         
-        # Calculate mf growth rate
-        self.growthrate = getattr(self, f"{method}_growthrate")
+        # # Calculate mf growth rate
+        # self.growthrate = getattr(self, f"{method}_growthrate")
 
 
     def run_spinup(self, nyears=5):
@@ -339,51 +341,38 @@ class Invert(Inverse_method, Plot):
         self.mat.x_a = np.zeros(nx)
 
 
-def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
-                        ic, emissions, mol_mass, lifetime,
-                        F, temperature, oh, cl, oh_a, oh_er, mass):
-    """Calculate some section of the sensitivity matrix 
+    def process_outputs(self, uncertainty="1-sigma"):
+        """Generate a set of outputs based on posterior solution
 
-    Parameters
-    ----------
-    nsens_section : int
-        Number of perturbations to carry out
-    t0 : int
-        Position of perturbation
-    freq_months : int
-        Number of months to perturb each time (e.g. monthly, quarterly, annually)
-    mf_ref : ndarray
-        Reference run mole fraction
+        Parameters
+        ----------
+        uncertainty : str, optional
+            Uncertainty measure, by default "1-sigma"
+            Can be "N-sigma", "N-percent" (not implemented yet)
+            where N is an integer
+        """
 
-    Returns
-    -------
-    ndarray
-        Section of sensitivty matrix
-    """
+        emissions_ensemble, \
+        mf_ensemble = self.posterior_ensemble(n_sample=1000,
+                                            scale_error=0.,
+                                            lifetime_error=0.,
+                                            transport_error=0.01)
 
-    if nsens_section > 0:
+        self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.emissions,
+                                                        emissions_ensemble,
+                                                        period="annual",
+                                                        globe=True,
+                                                        uncertainty=uncertainty)
 
-        sens = np.zeros((len(mf_ref[:, :4].flatten()), nsens_section*4))
+        self.outputs.emissions_annual = aggregate_outputs(self.mod_posterior.emissions,
+                                                        emissions_ensemble,
+                                                        period="annual",
+                                                        globe=False,
+                                                        uncertainty=uncertainty)
+        
+        self.outputs.emissions = aggregate_outputs(self.mod_posterior.emissions,
+                                                        emissions_ensemble,
+                                                        period="monthly",
+                                                        globe=False,
+                                                        uncertainty=uncertainty)
 
-        for ti in range(nsens_section):
-            for bi in range(4):
-
-                # Perturb emissions uniformly throughout specified time period
-                emissions_perturbed = emissions.copy()
-                emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
-
-                # Run perturbed model
-                mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
-                        core.model(ic, emissions_perturbed, mol_mass, lifetime,
-                                    F, temperature, oh, cl,
-                                    arr_oh=np.array([oh_a, oh_er]),
-                                    mass=mass)
-                
-                # Store sensitivity column
-                sens[:, 4*ti + bi] = (mf_out[:,:4].flatten() - mf_ref[:,:4].flatten()) / 1.
-
-        return sens
-    
-    else:
-
-        return None

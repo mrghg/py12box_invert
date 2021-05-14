@@ -25,6 +25,110 @@ class Store_model:
         self.burden = mod.burden.copy()
 
 
+
+def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
+                        ic, emissions, mol_mass, lifetime,
+                        F, temperature, oh, cl, oh_a, oh_er, mass):
+    """Calculate some section of the sensitivity matrix 
+
+    Parameters
+    ----------
+    nsens_section : int
+        Number of perturbations to carry out
+    t0 : int
+        Position of perturbation
+    freq_months : int
+        Number of months to perturb each time (e.g. monthly, quarterly, annually)
+    mf_ref : ndarray
+        Reference run mole fraction
+
+    Returns
+    -------
+    ndarray
+        Section of sensitivty matrix
+    """
+
+    if nsens_section > 0:
+
+        sens = np.zeros((len(mf_ref[:, :4].flatten()), nsens_section*4))
+
+        for ti in range(nsens_section):
+            for bi in range(4):
+
+                # Perturb emissions uniformly throughout specified time period
+                emissions_perturbed = emissions.copy()
+                emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
+
+                # Run perturbed model
+                mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
+                        core.model(ic, emissions_perturbed, mol_mass, lifetime,
+                                    F, temperature, oh, cl,
+                                    arr_oh=np.array([oh_a, oh_er]),
+                                    mass=mass)
+                
+                # Store sensitivity column
+                sens[:, 4*ti + bi] = (mf_out[:,:4].flatten() - mf_ref[:,:4].flatten()) / 1.
+
+        return sens
+    
+    else:
+
+        return None
+
+
+def aggregate_outputs(mean, ensemble,
+                    period="annual",
+                    globe=True,
+                    uncertainty="1-sigma"):
+
+    # Add a time aggregation dimension
+    _mean = np.expand_dims(mean, axis=1)
+    _ensemble = np.expand_dims(ensemble, axis=1)
+
+    enshape = list(_ensemble.shape)
+    meanshape = list(_mean.shape)
+
+    # Time averaging
+    if period == "annual":
+        enshape[0] = int(enshape[0]/12)
+        enshape[1] = 12
+        meanshape[0] = int(meanshape[0]/12)
+        meanshape[1] = 12
+    elif period == "seasonal":
+        enshape[0] = int(enshape[0]/3)
+        enshape[1] = 3
+        meanshape[0] = int(meanshape[0]/3)
+        meanshape[1] = 3
+
+    _mean = np.reshape(_mean, meanshape)
+    _ensemble = np.reshape(_ensemble, enshape)
+
+    # Global sum
+    if globe:
+        _mean = _mean.sum(axis=2)
+        _ensemble = _ensemble.sum(axis=2)
+
+    # Do time averaging
+    _mean = _mean.mean(axis=1)
+    _ensemble = _ensemble.mean(axis=1)
+
+    if "sigma" in uncertainty:
+        _uncertainty = _ensemble.std(axis=-1)
+        # Can have n-sigma output
+        _uncertainty *= float(uncertainty[0])
+    elif "percentile" in uncertainty:
+        raise NotImplementedError("Need to add percentiles")
+
+    return _mean, _uncertainty
+
+
+
+
+
+
+
+
+
 def approx_initial_conditions(species, project_path, ic0):
     """
     Spin up the model to approximate initial conditions
