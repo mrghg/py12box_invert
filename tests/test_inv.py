@@ -1,6 +1,6 @@
 from py12box_invert.paths import Paths
 from py12box_invert.obs import Obs
-from py12box_invert.invert import Invert, Matrices, Prior_model
+from py12box_invert.invert import Invert, Store_model
 import numpy as np
 
 
@@ -9,20 +9,20 @@ project_path = Paths.data / f"example/{species}"
 
 inv = Invert(project_path, species, 
              start_year=2000., end_year=2010.,
+             method="rigby14",
              ic_years=None)
 
 
 def test_alignment():
+
     assert np.allclose(inv.mod.time, inv.obs.time)
     
 
 def test_sensitivity():
 
-    # Cut down model size to make this faster
-    
     # Update prior model, to reflect changes in start and end date
     inv.mod.run()
-    inv.mod_prior = Prior_model(inv.mod)
+    inv.mod_prior = Store_model(inv.mod)
 
     inv.run_sensitivity(freq="yearly")
     sens_yr = inv.sensitivity.sensitivity.copy()
@@ -94,3 +94,18 @@ def test_matrices():
     assert sum(np.diag(inv.mat.R) > 0.) == inv.mat.y.shape[0]
 
 
+def test_inversion():
+
+    inv.run_inversion()
+    
+    # Has a posterior solution been found, and does it take reasonable values
+    assert np.abs(inv.mat.x_hat.sum()) < 1e6
+
+    # Is posterior covariance positive definite?
+    L_hat = np.linalg.cholesky(inv.mat.P_hat)
+
+
+def test_posterior():
+
+    inv.posterior()
+    
