@@ -240,89 +240,6 @@ class Inverse_method:
 
         return np.dstack(emissions_ensemble), np.dstack(mf_ensemble)
 
-
-    def analytical_gaussian_annualemissions(self, lifetime_err_path=None):
-        """
-        Calculate annual total annual emissions and its uncertaity
-        Inputs:
-            lifetime_err_path : str, optional
-                Path to the JSON file containing the inverse lifetime error as a decimal 
-                fraction (e.g. "inverse_lifetime_error":[{"CFC-11:0.1"}] for 10%
-                uncertainty in the lifetime). The error is then added to the posterior
-                emissions uncertainty. Ignored if set to None (default).
-        """
-
-        # Annual emissions and uncertainty from posterior covariance
-        n_months = int(12./self.sensitivity.freq_months)
-        self.mod_posterior.annual_emissions = np.add.reduceat(self.mod_posterior.emissions.sum(axis=1), 
-                                                              np.arange(0, len(self.mod_posterior.emissions.sum(axis=1)), 12))/12
-        self.mod_posterior.annual_emissions_sd = np.zeros_like(self.mod_posterior.annual_emissions)
-
-        # Add in model and lifetime uncertainty
-        R_expand = self.mat.P_hat + self.modeltransport_var()
-        for i in np.arange(len(self.mod_posterior.annual_emissions_sd)):
-            if lifetime_err_path:
-                self.mod_posterior.annual_emissions_sd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2 + \
-                                                      self.lifetime_var(lifetime_err_path)[i])
-            else:
-                self.mod_posterior.annual_emissions_sd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2) 
-
-            
-    def analytical_gaussian_annualmf(self):
-        """
-        Calculate annual global and semi-hemispheric mf with uncertianties
-        """
-        # Calculate annual mf in each semi-hemisphere and globally with uncertainties
-        self.mod_posterior.annualmf = np.add.reduceat(self.mod_posterior.mf,
-                                                      np.arange(0,len(self.mod.time), 12), axis=0)/12.
-        self.mod_posterior.annualglobalmf = self.mod_posterior.annualmf.copy().mean(axis=1)
-        R_hat = (self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T)*1.02**2 #2% calibration error
-
-        self.mod_posterior.annualmfsd = np.zeros_like(self.mod_posterior.annualmf)
-        self.mod_posterior.annualglobalmfsd = np.zeros_like(self.mod_posterior.annualglobalmf)
-        for i in range(len(self.mod_posterior.annualglobalmf)):
-            self.mod_posterior.annualglobalmfsd[i] = np.sqrt(R_hat[i*48:(i+1)*48].sum()/48**2)
-        for bi in range(4):
-            R_hat_bx = R_hat[bi::4,bi::4]
-            for i in range(self.mod_posterior.annualglobalmf.shape[0]):
-                self.mod_posterior.annualmfsd[i,bi] = np.sqrt(R_hat_bx[i*12:(i+1)*12].sum()/12**2)
-        
-
-    def analytical_gaussian_growthrate(self, nsample=1000):
-        """
-        Calculate growth rates using KZ filter.
-        Monte Carlo sample mfs from posterior predicted covariance.
-        
-        Inputs:
-            nsample:
-                Number of Monte Carlo samples
-        """
-        L_hat = np.linalg.cholesky(self.mat.P_hat)
-        sample = self.sensitivity.sensitivity @ L_hat @ np.random.normal(size=(self.sensitivity.sensitivity.shape[1], nsample))
-        gr_array = np.zeros((len(self.mod_posterior.mf[6:-6,0]), 4, nsample))
-        gr_annual_array = np.zeros((len(self.mod_posterior.mf[12:-12:12,0]), 4, nsample))
-        gr = np.zeros((len(self.mod_posterior.mf[6:-6,0]), 4))
-        gr_annual = np.zeros((len(self.mod_posterior.mf[12:-12:12,0]), 4))
-
-        # Just x12 to convert from per months to per year
-        for si in range(nsample):
-            for bx in range(4):
-                gr_diff = np.diff(self.mod_posterior.mf[:,bx]+sample[bx::4,si])
-                gr_array[:,bx,si] = kz_filter(gr_diff, 12, 1)*12
-                gr_annual_array[:,bx,si] = np.mean(gr_array[6:-6,bx,si].reshape(-1, 12), axis=1)
-        gr_sd = np.std(gr_array, axis=2)
-        gr_annual_sd  = np.std(gr_annual_array, axis=2)
-        for bx in range(4):
-            gr_diff = np.diff(self.mod_posterior.mf[:,bx])
-            gr[:,bx] = kz_filter(gr_diff, 12, 1)*12
-            gr_annual[:,bx] = np.mean(gr[6:-6, bx].reshape(-1, 12), axis=1)
-
-        self.growth_rate.time = self.mod.time[6:-6]
-        self.growth_rate.mf = gr
-        self.growth_rate.mfsd = gr_sd
-        self.growth_rate.annualmf = gr_annual
-        self.growth_rate.annualmfsd = gr_annual_sd        
-        
     
     def rigby14(self):
         """Emissions growth-constrainted method of Rigby et al., 2011 and 2014
@@ -510,34 +427,117 @@ class Inverse_method:
         self.analytical_gaussian_growthrate()
         
 
-    def lifetime_var(self, lifetime_err_path):
-        """
-        Emissions uncertainty variance added due to lifetime uncertainty.
-        1/Lifetime 1sd uncertainties (in %) from Rigby et al 2014 / SPARC 2013
-        sig_emissions = B*sig_1/lifetime
-        Assumed to be independent year-to-year.
+    # def lifetime_var(self, lifetime_err_path):
+    #     """
+    #     Emissions uncertainty variance added due to lifetime uncertainty.
+    #     1/Lifetime 1sd uncertainties (in %) from Rigby et al 2014 / SPARC 2013
+    #     sig_emissions = B*sig_1/lifetime
+    #     Assumed to be independent year-to-year.
         
-        Inputs:
-            lifetime_err_path : str, optional
-                Path to the JSON file containing the inverse lifetime error as a decimal 
-                fraction (e.g. "inverse_lifetime_error":[{"CFC-11:0.1"}] for 10%
-                uncertainty in the lifetime). The error is then added to the posterior
-                emissions uncertainty. Ignored if set to None (default).
-        """
-        with open(lifetime_err_path) as f:
-            lt_err_data = json.load(f)
-        lifetime_uncertainty = lt_err_data["inverse_lifetime_error"]
-        if self.mod.species not in lifetime_uncertainty.keys():
-            raise Exception("No lifetime uncertainty for species {}".format(self.mod.species))
-        n_months = int(12./self.sensitivity.freq_months)
-        burden_sd = np.zeros_like(self.mod_posterior.annualemissionssd)
-        for i in range(len(self.mod_posterior.annualemissionssd)):
-            burden_sd[i] = self.mod.burden.sum(axis=1)[(i*n_months):((i+1)*n_months)].mean()/1e9
+    #     Inputs:
+    #         lifetime_err_path : str, optional
+    #             Path to the JSON file containing the inverse lifetime error as a decimal 
+    #             fraction (e.g. "inverse_lifetime_error":[{"CFC-11:0.1"}] for 10%
+    #             uncertainty in the lifetime). The error is then added to the posterior
+    #             emissions uncertainty. Ignored if set to None (default).
+    #     """
+    #     with open(lifetime_err_path) as f:
+    #         lt_err_data = json.load(f)
+    #     lifetime_uncertainty = lt_err_data["inverse_lifetime_error"]
+    #     if self.mod.species not in lifetime_uncertainty.keys():
+    #         raise Exception("No lifetime uncertainty for species {}".format(self.mod.species))
+    #     n_months = int(12./self.sensitivity.freq_months)
+    #     burden_sd = np.zeros_like(self.mod_posterior.annualemissionssd)
+    #     for i in range(len(self.mod_posterior.annualemissionssd)):
+    #         burden_sd[i] = self.mod.burden.sum(axis=1)[(i*n_months):((i+1)*n_months)].mean()/1e9
             
-        return (1/self.mod.steady_state_lifetime*lifetime_uncertainty[self.mod.species]*burden_sd)**2
+    #     return (1/self.mod.steady_state_lifetime*lifetime_uncertainty[self.mod.species]*burden_sd)**2
 
-    def modeltransport_var(self):
-        """
-        Transport error translates to 1% of emissions uncertainty.
-        """
-        return self.mat.P_hat*0.01**2
+    # def modeltransport_var(self):
+    #     """
+    #     Transport error translates to 1% of emissions uncertainty.
+    #     """
+    #     return self.mat.P_hat*0.01**2
+
+    # def analytical_gaussian_annualemissions(self, lifetime_err_path=None):
+    #     """
+    #     Calculate annual total annual emissions and its uncertaity
+    #     Inputs:
+    #         lifetime_err_path : str, optional
+    #             Path to the JSON file containing the inverse lifetime error as a decimal 
+    #             fraction (e.g. "inverse_lifetime_error":[{"CFC-11:0.1"}] for 10%
+    #             uncertainty in the lifetime). The error is then added to the posterior
+    #             emissions uncertainty. Ignored if set to None (default).
+    #     """
+
+    #     # Annual emissions and uncertainty from posterior covariance
+    #     n_months = int(12./self.sensitivity.freq_months)
+    #     self.mod_posterior.annual_emissions = np.add.reduceat(self.mod_posterior.emissions.sum(axis=1), 
+    #                                                           np.arange(0, len(self.mod_posterior.emissions.sum(axis=1)), 12))/12
+    #     self.mod_posterior.annual_emissions_sd = np.zeros_like(self.mod_posterior.annual_emissions)
+
+    #     # Add in model and lifetime uncertainty
+    #     R_expand = self.mat.P_hat + self.modeltransport_var()
+    #     for i in np.arange(len(self.mod_posterior.annual_emissions_sd)):
+    #         if lifetime_err_path:
+    #             self.mod_posterior.annual_emissions_sd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2 + \
+    #                                                   self.lifetime_var(lifetime_err_path)[i])
+    #         else:
+    #             self.mod_posterior.annual_emissions_sd[i] = np.sqrt(R_expand[(i*n_months*4):((i+1)*n_months*4),(i*n_months*4):((i+1)*n_months*4)].sum()/(n_months)**2) 
+
+            
+    # def analytical_gaussian_annualmf(self):
+    #     """
+    #     Calculate annual global and semi-hemispheric mf with uncertianties
+    #     """
+    #     # Calculate annual mf in each semi-hemisphere and globally with uncertainties
+    #     self.mod_posterior.annualmf = np.add.reduceat(self.mod_posterior.mf,
+    #                                                   np.arange(0,len(self.mod.time), 12), axis=0)/12.
+    #     self.mod_posterior.annualglobalmf = self.mod_posterior.annualmf.copy().mean(axis=1)
+    #     R_hat = (self.sensitivity.sensitivity @ self.mat.P_hat @ self.sensitivity.sensitivity.T)*1.02**2 #2% calibration error
+
+    #     self.mod_posterior.annualmfsd = np.zeros_like(self.mod_posterior.annualmf)
+    #     self.mod_posterior.annualglobalmfsd = np.zeros_like(self.mod_posterior.annualglobalmf)
+    #     for i in range(len(self.mod_posterior.annualglobalmf)):
+    #         self.mod_posterior.annualglobalmfsd[i] = np.sqrt(R_hat[i*48:(i+1)*48].sum()/48**2)
+    #     for bi in range(4):
+    #         R_hat_bx = R_hat[bi::4,bi::4]
+    #         for i in range(self.mod_posterior.annualglobalmf.shape[0]):
+    #             self.mod_posterior.annualmfsd[i,bi] = np.sqrt(R_hat_bx[i*12:(i+1)*12].sum()/12**2)
+        
+
+    # def analytical_gaussian_growthrate(self, nsample=1000):
+    #     """
+    #     Calculate growth rates using KZ filter.
+    #     Monte Carlo sample mfs from posterior predicted covariance.
+        
+    #     Inputs:
+    #         nsample:
+    #             Number of Monte Carlo samples
+    #     """
+    #     L_hat = np.linalg.cholesky(self.mat.P_hat)
+    #     sample = self.sensitivity.sensitivity @ L_hat @ np.random.normal(size=(self.sensitivity.sensitivity.shape[1], nsample))
+    #     gr_array = np.zeros((len(self.mod_posterior.mf[6:-6,0]), 4, nsample))
+    #     gr_annual_array = np.zeros((len(self.mod_posterior.mf[12:-12:12,0]), 4, nsample))
+    #     gr = np.zeros((len(self.mod_posterior.mf[6:-6,0]), 4))
+    #     gr_annual = np.zeros((len(self.mod_posterior.mf[12:-12:12,0]), 4))
+
+    #     # Just x12 to convert from per months to per year
+    #     for si in range(nsample):
+    #         for bx in range(4):
+    #             gr_diff = np.diff(self.mod_posterior.mf[:,bx]+sample[bx::4,si])
+    #             gr_array[:,bx,si] = kz_filter(gr_diff, 12, 1)*12
+    #             gr_annual_array[:,bx,si] = np.mean(gr_array[6:-6,bx,si].reshape(-1, 12), axis=1)
+    #     gr_sd = np.std(gr_array, axis=2)
+    #     gr_annual_sd  = np.std(gr_annual_array, axis=2)
+    #     for bx in range(4):
+    #         gr_diff = np.diff(self.mod_posterior.mf[:,bx])
+    #         gr[:,bx] = kz_filter(gr_diff, 12, 1)*12
+    #         gr_annual[:,bx] = np.mean(gr[6:-6, bx].reshape(-1, 12), axis=1)
+
+    #     self.growth_rate.time = self.mod.time[6:-6]
+    #     self.growth_rate.mf = gr
+    #     self.growth_rate.mfsd = gr_sd
+    #     self.growth_rate.annualmf = gr_annual
+    #     self.growth_rate.annualmfsd = gr_annual_sd        
+        
