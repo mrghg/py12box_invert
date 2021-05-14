@@ -5,7 +5,7 @@ import json
 from scipy.optimize import minimize
 from py12box_invert.core import global_mf, hemis_mf, annual_means
 from py12box_invert.kz_filter import kz_filter
-from py12box_invert.invert import Store_model
+from py12box_invert.utils import Store_model
 
 def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat):
     """Calculate linear adjustment to mole fraction

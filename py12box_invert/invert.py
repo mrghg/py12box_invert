@@ -9,26 +9,10 @@ import importlib
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
+from py12box_invert.utils import Store_model
 from py12box.model import Model, core
+
 #from py12box.core import flux_sensitivity
-
-
-class Store_model:
-    """Class to store some of the parameters from a model run
-
-    """
-    def __init__(self, mod):
-
-        # Model inputs
-        self.time = mod.time.copy()
-        self.emissions = mod.emissions.copy()
-        self.ic = mod.ic.copy()
-        self.lifetime = mod.lifetime.copy()
-        self.steady_state_lifetime = mod.steady_state_lifetime.copy()
-        
-        # Model outputs
-        self.mf = mod.mf.copy()
-        self.burden = mod.burden.copy()
 
 class Matrices:
     """Empty class to store inversion matrices

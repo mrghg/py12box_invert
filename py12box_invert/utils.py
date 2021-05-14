@@ -7,6 +7,24 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
+class Store_model:
+    """Class to store some of the parameters from a model run
+
+    """
+    def __init__(self, mod):
+
+        # Model inputs
+        self.time = mod.time.copy()
+        self.emissions = mod.emissions.copy()
+        self.ic = mod.ic.copy()
+        self.lifetime = mod.lifetime.copy()
+        self.steady_state_lifetime = mod.steady_state_lifetime.copy()
+        
+        # Model outputs
+        self.mf = mod.mf.copy()
+        self.burden = mod.burden.copy()
+
+
 def approx_initial_conditions(species, project_path, ic0):
     """
     Spin up the model to approximate initial conditions
