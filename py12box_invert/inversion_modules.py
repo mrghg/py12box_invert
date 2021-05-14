@@ -168,7 +168,7 @@ class Inverse_method:
         # Store posterior model
         self.mod_posterior = Store_model(self.mod)
 
-        # Add in uncertainties
+        # Add in analytical uncertainties
         self.mod_posterior.emissions_sd = emissions_sd
         self.mod_posterior.mf_sd = mf_sd
 
@@ -266,7 +266,15 @@ class Inverse_method:
         """
 
         self.analytical_gaussian_posterior()
-        
+
+    def rigby14_posterior_ensemble(self, **kwargs):
+        """
+        The same as a standard analytical Gaussian
+        """
+
+        return self.analytical_gaussian_posterior_ensemble(**kwargs)
+
+
     def rigby14_annualemissions(self, lifetime_err_path=None):
         """
         The same as a standard analytical Gaussian

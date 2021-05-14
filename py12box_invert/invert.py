@@ -132,7 +132,8 @@ class Invert(Inverse_method, Plot):
         
         # Get method to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
-        
+        self.posterior_ensemble = getattr(self, f"{method}_posterior_ensemble")
+
         # Calculate annual emissions and mf with uncertainties
         self.annualmf = getattr(self, f"{method}_annualmf")
         self.annualemissions = getattr(self, f"{method}_annualemissions")
@@ -140,7 +141,6 @@ class Invert(Inverse_method, Plot):
         # Calculate mf growth rate
         self.growthrate = getattr(self, f"{method}_growthrate")
 
-        self.calc_ensemble = getattr(self, "analytical_gaussian_posterior_ensemble")
 
     def run_spinup(self, nyears=5):
         """Spin model up

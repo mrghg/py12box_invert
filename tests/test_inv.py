@@ -99,13 +99,47 @@ def test_inversion():
     inv.run_inversion()
     
     # Has a posterior solution been found, and does it take reasonable values
+    # Not the best test ever written...
     assert np.abs(inv.mat.x_hat.sum()) < 1e6
 
     # Is posterior covariance positive definite?
+    # I think Cholesky should fail if not?
     L_hat = np.linalg.cholesky(inv.mat.P_hat)
 
 
 def test_posterior():
 
     inv.posterior()
+    # The posterior method should test if linear model matches posterior forward run
+    # so don't need to test that
     
+    # Test that sensible uncertainties have been output
+    assert inv.mod_posterior.emissions_sd.shape == inv.mod_posterior.emissions.shape
+    assert np.sum(inv.mod_posterior.emissions_sd > 0.) == inv.mod_posterior.emissions_sd.size
+
+    assert inv.mod_posterior.mf_sd.shape == inv.mod_posterior.mf[:,:4].shape
+    assert np.sum(inv.mod_posterior.mf_sd > 0.) == inv.mod_posterior.mf_sd.size
+
+
+def test_ensemble():
+
+    def rmse_relative(a, b):
+        return np.sqrt(np.mean(np.square(a-b)))/np.mean(a)
+
+    emissions_ensemble, mf_ensemble = inv.posterior_ensemble(n_sample=1000,
+                                                            scale_error=0.,
+                                                            lifetime_error=0.,
+                                                            transport_error=0.)
+
+    emissions_sd = emissions_ensemble.std(axis=2)
+    mf_sd = mf_ensemble.std(axis=2)
+
+    # Is the RMSE of the standard deviation less than, say 5%
+    assert rmse_relative(emissions_sd, inv.mod_posterior.emissions_sd) < 0.05
+    assert rmse_relative(mf_sd, inv.mod_posterior.mf_sd) < 0.05
+
+    # Test all elements are close... make this quite loose
+    # otherwise it'll fail randomly
+    assert np.allclose(emissions_sd, inv.mod_posterior.emissions_sd, rtol=0.1)
+    assert np.allclose(mf_sd, inv.mod_posterior.mf_sd, rtol=0.1)
+
