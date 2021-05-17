@@ -5,6 +5,7 @@ from py12box import startup, core
 from py12box_invert import core as invcore
 import matplotlib.pyplot as plt
 from pathlib import Path
+from py12box_invert.kz_filter import kz_filter
 
 
 class Store_model:
@@ -80,15 +81,42 @@ def aggregate_outputs(mean, ensemble,
                     period="annual",
                     globe=True,
                     uncertainty="1-sigma"):
+    """Aggregate a set of outputs to produce means with uncertainties
+
+    Parameters
+    ----------
+    mean : ndarray
+        Mean posterior values (e.g. mole fraction in each box)
+    ensemble : ndarray, n_months x n_box x n_samples
+        Monte Carlo ensemble of posterior values
+    period : str, optional
+        Time period over which to aggregate ("annual", "seasonal"), by default "annual"
+    globe : bool, optional
+        Calculate global mean, by default True
+    uncertainty : str, optional
+        Type of uncertainty to output ("1-sigma", "95-percentile"), by default "1-sigma"
+
+    Returns
+    -------
+    ndarray
+        Mean aggregated quantity
+    ndarray
+        Uncertainty in aggregated quantity
+
+    Raises
+    ------
+    NotImplementedError
+        [description]
+    """
 
     # Add a time aggregation dimension
     _mean = np.expand_dims(mean, axis=1)
     _ensemble = np.expand_dims(ensemble, axis=1)
 
-    enshape = list(_ensemble.shape)
     meanshape = list(_mean.shape)
+    enshape = list(_ensemble.shape)
 
-    # Time averaging
+    # Time aggregation reshape (note additional dimension was added to both above)
     if period == "annual":
         enshape[0] = int(enshape[0]/12)
         enshape[1] = 12
@@ -122,11 +150,51 @@ def aggregate_outputs(mean, ensemble,
     return _mean, _uncertainty
 
 
+def smooth_outputs(time, mean, ensemble,
+                    globe=False,
+                    uncertainty="1-sigma",
+                    kz_params=(8, 4),
+                    growth=False
+                    ):
 
+    # Global sum
+    if globe:
+        _mean = mean.sum(axis=1)
+        _ensemble = ensemble.sum(axis=1)
+        # Add axis back in to keep indices consistent below
+        _mean = np.expand_dims(_mean, axis=1)
+        _ensemble = np.expand_dims(_ensemble, axis=1)
+    else:
+        _mean = mean.copy()
+        _ensemble = ensemble.copy()
 
+    # Calculate monthly growth rate
+    #  factor of 12 is to transform to annual growth
+    if growth:
+        _time = (time[1:] + time[:-1])/2.
+        _mean = (_mean[1:,:] - _mean[:-1,:])*12.
+        _ensemble = (_ensemble[1:,:,:] - _ensemble[:-1,:,:])*12.
+    else:
+        _time = time.copy()
 
+    # Do smoothing
+    _time = kz_filter(_time, kz_params[0], kz_params[1])
+    
+    # Arrays to store output
+    _out_mean = np.empty((_time.shape[0], _mean.shape[-1]))
+    _out_ensemble = np.empty((_time.shape[0], _mean.shape[-1], _ensemble.shape[-1]))
 
+    for bi in range(_mean.shape[-1]):
+        _out_mean[:, bi] = kz_filter(_mean[:, bi], kz_params[0], kz_params[1])
+        for i in range(ensemble.shape[-1]):
+            _out_ensemble[:, bi, i] = kz_filter(_ensemble[:, bi, i], kz_params[0], kz_params[1])
 
+    if "sigma" in uncertainty:
+        _uncertainty = _out_ensemble.std(axis=-1)
+        # Can have n-sigma output
+        _uncertainty *= float(uncertainty[0])
+
+    return _time, np.squeeze(_out_mean), np.squeeze(_uncertainty)
 
 
 def approx_initial_conditions(species, project_path, ic0):
