@@ -5,7 +5,7 @@ from multiprocessing import Pool
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
-from py12box_invert.utils import Store_model, aggregate_outputs, sensitivity_section
+from py12box_invert.utils import Store_model, aggregate_outputs
 from py12box.model import Model, core
 
 #from py12box.core import flux_sensitivity
@@ -24,16 +24,6 @@ class Outputs:
     """Empty class to store outputs
     """
     pass
-
-# class Growth_rate:
-#     """Empty class to store growth rates
-#     """
-#     pass
-
-# class Species:
-#     """Empty class to store species info
-#     """
-#     pass
 
 
 class Invert(Inverse_method, Plot):
@@ -414,3 +404,53 @@ class Invert(Inverse_method, Plot):
                                                         mf_ensemble,
                                                         globe="none",
                                                         uncertainty=uncertainty)
+
+
+def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
+                        ic, emissions, mol_mass, lifetime,
+                        F, temperature, oh, cl, oh_a, oh_er, mass):
+    """Calculate some section of the sensitivity matrix 
+
+    Parameters
+    ----------
+    nsens_section : int
+        Number of perturbations to carry out
+    t0 : int
+        Position of perturbation
+    freq_months : int
+        Number of months to perturb each time (e.g. monthly, quarterly, annually)
+    mf_ref : ndarray
+        Reference run mole fraction
+
+    Returns
+    -------
+    ndarray
+        Section of sensitivty matrix
+    """
+
+    if nsens_section > 0:
+
+        sens = np.zeros((len(mf_ref[:, :4].flatten()), nsens_section*4))
+
+        for ti in range(nsens_section):
+            for bi in range(4):
+
+                # Perturb emissions uniformly throughout specified time period
+                emissions_perturbed = emissions.copy()
+                emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
+
+                # Run perturbed model
+                mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
+                        core.model(ic, emissions_perturbed, mol_mass, lifetime,
+                                    F, temperature, oh, cl,
+                                    arr_oh=np.array([oh_a, oh_er]),
+                                    mass=mass)
+                
+                # Store sensitivity column
+                sens[:, 4*ti + bi] = (mf_out[:,:4].flatten() - mf_ref[:,:4].flatten()) / 1.
+
+        return sens
+    
+    else:
+
+        return None
