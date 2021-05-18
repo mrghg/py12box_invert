@@ -361,18 +361,33 @@ class Invert(Inverse_method, Plot):
         self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="annual",
-                                                        globe=True,
+                                                        globe="sum",
                                                         uncertainty=uncertainty)
 
         self.outputs.emissions_annual = aggregate_outputs(self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="annual",
-                                                        globe=False,
+                                                        globe="none",
                                                         uncertainty=uncertainty)
         
         self.outputs.emissions = aggregate_outputs(self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="monthly",
-                                                        globe=False,
+                                                        globe="none",
                                                         uncertainty=uncertainty)
 
+        self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.mf,
+                                                        mf_ensemble,
+                                                        period="annual",
+                                                        globe="mean",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_global_growth = aggregate_outputs(self.mod_posterior.mf,
+                                                        mf_ensemble,
+                                                        globe="mean",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_growth = aggregate_outputs(self.mod_posterior.mf,
+                                                        mf_ensemble,
+                                                        globe="none",
+                                                        uncertainty=uncertainty)

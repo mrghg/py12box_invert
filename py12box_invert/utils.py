@@ -79,7 +79,7 @@ def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
 
 def aggregate_outputs(mean, ensemble,
                     period="annual",
-                    globe=True,
+                    globe="none",
                     uncertainty="1-sigma"):
     """Aggregate a set of outputs to produce means with uncertainties
 
@@ -91,8 +91,8 @@ def aggregate_outputs(mean, ensemble,
         Monte Carlo ensemble of posterior values
     period : str, optional
         Time period over which to aggregate ("annual", "seasonal"), by default "annual"
-    globe : bool, optional
-        Calculate global mean, by default True
+    globe : str, optional
+        Calculate global "sum" or "mean", by default "none"
     uncertainty : str, optional
         Type of uncertainty to output ("1-sigma", "95-percentile"), by default "1-sigma"
 
@@ -106,7 +106,7 @@ def aggregate_outputs(mean, ensemble,
     Raises
     ------
     NotImplementedError
-        [description]
+        Currently, only 1-sigma uncertainties can be output
     """
 
     # Add a time aggregation dimension
@@ -131,10 +131,13 @@ def aggregate_outputs(mean, ensemble,
     _mean = np.reshape(_mean, meanshape)
     _ensemble = np.reshape(_ensemble, enshape)
 
-    # Global sum
-    if globe:
+    # Global sum/mean
+    if globe == "sum":
         _mean = _mean.sum(axis=2)
         _ensemble = _ensemble.sum(axis=2)
+    elif globe == "mean":
+        _mean = _mean.mean(axis=2)
+        _ensemble = _ensemble.mean(axis=2)
 
     # Do time averaging
     _mean = _mean.mean(axis=1)
@@ -151,16 +154,57 @@ def aggregate_outputs(mean, ensemble,
 
 
 def smooth_outputs(time, mean, ensemble,
-                    globe=False,
-                    uncertainty="1-sigma",
-                    kz_params=(8, 4),
-                    growth=False
+                    globe="none",
+                    growth=False,
+                    kz_params=(9, 4),
+                    uncertainty="1-sigma"
                     ):
+    """Aggregate a set of outputs to produce means with uncertainties
+
+    Parameters
+    ----------
+    time : ndarray
+        Decimal date
+    mean : ndarray
+        Mean posterior values (e.g. mole fraction in each box)
+    ensemble : ndarray, n_months x n_box x n_samples
+        Monte Carlo ensemble of posterior values
+    globe : str, optional
+        Calculate global "sum" or "mean", by default "none"
+    growth : boolean, optional
+        Calculate growth rate, by default False
+    kz_params : tuple, optional
+        Parameters for K-Z filter (window, order), by default (9, 4), corresponding
+        to a 9-month window and 4 smoother passes, which leads to approximately
+        an 18 month filter (window * sqrt(order))
+    uncertainty : str, optional
+        Type of uncertainty to output ("1-sigma", "95-percentile"), by default "1-sigma"
+
+    Returns
+    -------
+    ndarray
+        Smoothed time
+    ndarray
+        Smoothed mean
+    ndarray
+        Uncertainty in smoothed quantity
+
+    Raises
+    ------
+    NotImplementedError
+        Currently, only 1-sigma uncertainties can be output
+    """
 
     # Global sum
-    if globe:
+    if globe == "sum":
         _mean = mean.sum(axis=1)
         _ensemble = ensemble.sum(axis=1)
+        # Add axis back in to keep indices consistent below
+        _mean = np.expand_dims(_mean, axis=1)
+        _ensemble = np.expand_dims(_ensemble, axis=1)
+    elif globe == "mean":
+        _mean = mean.mean(axis=1)
+        _ensemble = ensemble.mean(axis=1)
         # Add axis back in to keep indices consistent below
         _mean = np.expand_dims(_mean, axis=1)
         _ensemble = np.expand_dims(_ensemble, axis=1)
@@ -193,8 +237,12 @@ def smooth_outputs(time, mean, ensemble,
         _uncertainty = _out_ensemble.std(axis=-1)
         # Can have n-sigma output
         _uncertainty *= float(uncertainty[0])
+    else:
+        raise NotImplementedError("Only sigma uncertainty at the moment")
 
     return _time, np.squeeze(_out_mean), np.squeeze(_uncertainty)
+
+
 
 
 def approx_initial_conditions(species, project_path, ic0):
