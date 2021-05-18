@@ -341,7 +341,11 @@ class Invert(Inverse_method, Plot):
         self.mat.x_a = np.zeros(nx)
 
 
-    def process_outputs(self, uncertainty="1-sigma"):
+    def process_outputs(self, n_sample=1000,
+                            scale_error=0.,
+                            lifetime_error=0.,
+                            transport_error=0.01,
+                            uncertainty="1-sigma"):
         """Generate a set of outputs based on posterior solution
 
         Parameters
@@ -353,13 +357,26 @@ class Invert(Inverse_method, Plot):
         """
 
         emissions_ensemble, \
-        mf_ensemble = self.posterior_ensemble(n_sample=1000,
+        mf_ensemble = self.posterior_ensemble(n_sample=n_sample,
+                                            scale_error=scale_error,
+                                            lifetime_error=lifetime_error,
+                                            transport_error=transport_error)
+
+        # Ensemble without systematic uncertainties
+        emissions_ensemble_nosys, \
+        mf_ensemble_nosys = self.posterior_ensemble(n_sample=n_sample,
                                             scale_error=0.,
                                             lifetime_error=0.,
-                                            transport_error=0.01)
+                                            transport_error=0.)
 
         self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.emissions,
                                                         emissions_ensemble,
+                                                        period="annual",
+                                                        globe="sum",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.emissions_global_annual_nosys = aggregate_outputs(self.mod_posterior.emissions,
+                                                        emissions_ensemble_nosys,
                                                         period="annual",
                                                         globe="sum",
                                                         uncertainty=uncertainty)
@@ -369,7 +386,13 @@ class Invert(Inverse_method, Plot):
                                                         period="annual",
                                                         globe="none",
                                                         uncertainty=uncertainty)
-        
+
+        self.outputs.emissions_annual_nosys = aggregate_outputs(self.mod_posterior.emissions,
+                                                        emissions_ensemble_nosys,
+                                                        period="annual",
+                                                        globe="none",
+                                                        uncertainty=uncertainty)
+
         self.outputs.emissions = aggregate_outputs(self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="monthly",
