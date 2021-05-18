@@ -5,7 +5,7 @@ from multiprocessing import Pool
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
-from py12box_invert.utils import Store_model, aggregate_outputs
+from py12box_invert.utils import Store_model, aggregate_outputs, smooth_outputs
 from py12box.model import Model, core
 
 #from py12box.core import flux_sensitivity
@@ -359,50 +359,60 @@ class Invert(Inverse_method, Plot):
                                             lifetime_error=0.,
                                             transport_error=0.)
 
-        self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.emissions,
+        self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="annual",
                                                         globe="sum",
                                                         uncertainty=uncertainty)
 
-        self.outputs.emissions_global_annual_nosys = aggregate_outputs(self.mod_posterior.emissions,
+        self.outputs.emissions_global_annual_nosys = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
                                                         emissions_ensemble_nosys,
                                                         period="annual",
                                                         globe="sum",
                                                         uncertainty=uncertainty)
 
-        self.outputs.emissions_annual = aggregate_outputs(self.mod_posterior.emissions,
+        self.outputs.emissions_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="annual",
                                                         globe="none",
                                                         uncertainty=uncertainty)
 
-        self.outputs.emissions_annual_nosys = aggregate_outputs(self.mod_posterior.emissions,
+        self.outputs.emissions_annual_nosys = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
                                                         emissions_ensemble_nosys,
                                                         period="annual",
                                                         globe="none",
                                                         uncertainty=uncertainty)
 
-        self.outputs.emissions = aggregate_outputs(self.mod_posterior.emissions,
+        self.outputs.emissions = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
                                                         emissions_ensemble,
                                                         period="monthly",
                                                         globe="none",
                                                         uncertainty=uncertainty)
 
-        self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.mf,
+        self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf,
                                                         mf_ensemble,
                                                         period="annual",
                                                         globe="mean",
                                                         uncertainty=uncertainty)
 
-        self.outputs.mf_global_growth = aggregate_outputs(self.mod_posterior.mf,
+        self.outputs.mf_global_growth = smooth_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
                                                         mf_ensemble,
                                                         globe="mean",
+                                                        growth=True,
                                                         uncertainty=uncertainty)
 
-        self.outputs.mf_growth = aggregate_outputs(self.mod_posterior.mf,
+        self.outputs.mf_growth = smooth_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
                                                         mf_ensemble,
                                                         globe="none",
+                                                        growth=True,
                                                         uncertainty=uncertainty)
 
 

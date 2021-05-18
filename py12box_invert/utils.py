@@ -1,6 +1,9 @@
 import xarray as xr
 import pandas as pd
 import numpy as np
+import datetime as dt
+import calendar
+
 from py12box import startup, core
 from py12box_invert import core as invcore
 import matplotlib.pyplot as plt
@@ -26,58 +29,7 @@ class Store_model:
         self.burden = mod.burden.copy()
 
 
-
-def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
-                        ic, emissions, mol_mass, lifetime,
-                        F, temperature, oh, cl, oh_a, oh_er, mass):
-    """Calculate some section of the sensitivity matrix 
-
-    Parameters
-    ----------
-    nsens_section : int
-        Number of perturbations to carry out
-    t0 : int
-        Position of perturbation
-    freq_months : int
-        Number of months to perturb each time (e.g. monthly, quarterly, annually)
-    mf_ref : ndarray
-        Reference run mole fraction
-
-    Returns
-    -------
-    ndarray
-        Section of sensitivty matrix
-    """
-
-    if nsens_section > 0:
-
-        sens = np.zeros((len(mf_ref[:, :4].flatten()), nsens_section*4))
-
-        for ti in range(nsens_section):
-            for bi in range(4):
-
-                # Perturb emissions uniformly throughout specified time period
-                emissions_perturbed = emissions.copy()
-                emissions_perturbed[(t0 + ti)*freq_months:freq_months*(t0+ti+1), bi] += 1.
-
-                # Run perturbed model
-                mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
-                        core.model(ic, emissions_perturbed, mol_mass, lifetime,
-                                    F, temperature, oh, cl,
-                                    arr_oh=np.array([oh_a, oh_er]),
-                                    mass=mass)
-                
-                # Store sensitivity column
-                sens[:, 4*ti + bi] = (mf_out[:,:4].flatten() - mf_ref[:,:4].flatten()) / 1.
-
-        return sens
-    
-    else:
-
-        return None
-
-
-def aggregate_outputs(mean, ensemble,
+def aggregate_outputs(time, mean, ensemble,
                     period="annual",
                     globe="none",
                     uncertainty="1-sigma"):
@@ -85,6 +37,8 @@ def aggregate_outputs(mean, ensemble,
 
     Parameters
     ----------
+    time : ndarray
+        Decimal date
     mean : ndarray
         Mean posterior values (e.g. mole fraction in each box)
     ensemble : ndarray, n_months x n_box x n_samples
@@ -128,6 +82,7 @@ def aggregate_outputs(mean, ensemble,
         meanshape[0] = int(meanshape[0]/3)
         meanshape[1] = 3
 
+    _time = np.reshape(time, meanshape[:2])
     _mean = np.reshape(_mean, meanshape)
     _ensemble = np.reshape(_ensemble, enshape)
 
@@ -140,6 +95,7 @@ def aggregate_outputs(mean, ensemble,
         _ensemble = _ensemble.mean(axis=2)
 
     # Do time averaging
+    _time = _time.mean(axis=1)
     _mean = _mean.mean(axis=1)
     _ensemble = _ensemble.mean(axis=1)
 
@@ -150,7 +106,7 @@ def aggregate_outputs(mean, ensemble,
     elif "percentile" in uncertainty:
         raise NotImplementedError("Need to add percentiles")
 
-    return _mean, _uncertainty
+    return _time, _mean, _uncertainty
 
 
 def smooth_outputs(time, mean, ensemble,
@@ -245,6 +201,38 @@ def smooth_outputs(time, mean, ensemble,
 
 
 
+
+def decimal_date(date):
+    '''
+    Calculate decimal date from pandas DatetimeIndex
+    
+        Parameters:
+            date (pandas DatetimeIndex): Dates to convert
+        Returns:
+            Array of decimal dates
+    '''
+
+    if not isinstance(date, pd.DatetimeIndex):
+        raise Exception("Expecting pandas.DatetimeIndex")
+
+    days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
+    
+    return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
+
+
+def decimal_to_pandas(dec):
+
+    dates = []
+    for f in dec:
+        year = int(f)
+        yeardatetime = dt.datetime(year, 1, 1)
+        daysPerYear = 365 + calendar.leapdays(year, year+1)
+        dates.append(pd.Timestamp(yeardatetime + dt.timedelta(days = daysPerYear*(f - year))))
+
+    return dates
+
+
+
 def approx_initial_conditions(species, project_path, ic0):
     """
     Spin up the model to approximate initial conditions
@@ -266,24 +254,6 @@ def approx_initial_conditions(species, project_path, ic0):
     
     #Take final spun up value and scale each semi-hemisphere to surface boxes.
     return c_month[-1,:] * np.tile(ic0[:4]/c_month[-1,:4],3)
-
-
-def decimal_date(date):
-    '''
-    Calculate decimal date from pandas DatetimeIndex
-    
-        Parameters:
-            date (pandas DatetimeIndex): Dates to convert
-        Returns:
-            Array of decimal dates
-    '''
-
-    if not isinstance(date, pd.DatetimeIndex):
-        raise Exception("Expecting pandas.DatetimeIndex")
-
-    days_in_year = np.array([[365., 366.][int(ly)] for ly in date.is_leap_year])
-    
-    return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
 
 
 def round_date(date):
