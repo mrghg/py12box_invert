@@ -142,4 +142,25 @@ def test_ensemble():
     # otherwise it'll fail randomly
     assert np.allclose(emissions_sd, inv.mod_posterior.emissions_sd, rtol=0.1)
     assert np.allclose(mf_sd, inv.mod_posterior.mf_sd, rtol=0.1)
+    
+def test_outputs():
+    
+    inv.process_outputs(scale_error=0.02, lifetime_error=0.1)
+    
+    # Make sure the emissions are getting ported across
+    assert np.allclose(inv.outputs.emissions[1], inv.mod_posterior.emissions)
+    
+    # Check the annual emissions 
+    assert np.allclose(inv.outputs.emissions[1].sum(axis=1)[::12], inv.outputs.emissions_global_annual[1])
+    assert np.allclose(inv.outputs.emissions_annual[1].sum(axis=1), inv.outputs.emissions_global_annual[1])
+    
+    # Check annual mf
+    assert np.allclose(np.mean(inv.mod_posterior.mf.mean(axis=1).reshape(-1, 12), axis=1), 
+                       inv.outputs.mf_global_annual[1])
+    
+    #TODO - make a better test for growth rates. Just check that they finite for now
+    assert np.isfinite(inv.outputs.mf_global_growth[1]).all()
+    assert np.isfinite(inv.outputs.mf_global_growth[2]).all()
+    
+    
 
