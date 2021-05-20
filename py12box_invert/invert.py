@@ -1,38 +1,14 @@
 import numpy as np
-from copy import deepcopy
-from tqdm import tqdm
-from bisect import bisect
 from math import ceil
 from multiprocessing import Pool
-import importlib
 
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
+from py12box_invert.utils import Store_model, aggregate_outputs, smooth_outputs
 from py12box.model import Model, core
+
 #from py12box.core import flux_sensitivity
-
-
-class Prior_model:
-    """Class to store some of the parameters from the prior model
-
-    """
-    def __init__(self, mod):
-
-        # Model inputs
-        self.time = mod.time.copy()
-        self.emissions = mod.emissions.copy()
-        self.ic = mod.ic.copy()
-        self.lifetime = mod.lifetime.copy()
-        self.steady_state_lifetime = mod.steady_state_lifetime.copy()
-        
-        # Model outputs
-        self.mf = mod.mf.copy()
-
-class Posterior_model:
-    """Empty class to store posterior model
-    """
-    pass
 
 class Matrices:
     """Empty class to store inversion matrices
@@ -44,13 +20,8 @@ class Sensitivity:
     """
     pass
 
-class Growth_rate:
-    """Empty class to store growth rates
-    """
-    pass
-
-class Species:
-    """Empty class to store species info
+class Outputs:
+    """Empty class to store outputs
     """
     pass
 
@@ -84,7 +55,7 @@ class Invert(Inverse_method, Plot):
             Number of years to pad the inversion before the first observation
             in order to allow for some spinup/discard years.
             Note that the emissions file must cover the implied period
-            (i.e. (year of first obs - ic_years) onwards), by default 5
+            (i.e. (year of first obs - ic_years) onwards), by default 3
 
         Raises
         ------
@@ -92,7 +63,6 @@ class Invert(Inverse_method, Plot):
             If obs files not found
         """
         # Store name of species
-        self.species = Species()
         self.species = species
         
         # Get obs
@@ -134,34 +104,35 @@ class Invert(Inverse_method, Plot):
         # Store some inputs and outputs from prior model
         # TODO: Note that use of the change_start_date or Change_end_date methods
         # may cause the prior model to become mis-aligned. 
-        # To align, need to re-run model and then Prior_model step.
+        # To align, need to re-run model and then Store_model step.
         # Check if this is a problem.
-        self.mod_prior = Prior_model(self.mod)
+        self.mod_prior = Store_model(self.mod)
 
         # Area to store inversion matrices
         self.mat = Matrices()
 
-        # Area to store posterior model
-        self.mod_posterior = Posterior_model()
-
         # Area to store sensitivity
         self.sensitivity = Sensitivity()
         
-        #Area to store growth rate
-        self.growth_rate = Growth_rate()
+        # #Area to store growth rate
+        # self.growth_rate = Growth_rate()
 
-        # Get inverse method
+        # Attach inverse method
         self.run_inversion = getattr(self, method)
         
-        # Get method to process posterior
+        # Attach methods to process posterior
         self.posterior = getattr(self, f"{method}_posterior")
+        self.posterior_ensemble = getattr(self, f"{method}_posterior_ensemble")
+
+        self.outputs = Outputs()
+
+        # # Calculate annual emissions and mf with uncertainties
+        # self.annualmf = getattr(self, f"{method}_annualmf")
+        # self.annualemissions = getattr(self, f"{method}_annualemissions")
         
-        # Calculate annual emissions and mf with uncertainties
-        self.annualmf = getattr(self, f"{method}_annualmf")
-        self.annualemissions = getattr(self, f"{method}_annualemissions")
-        
-        # Calculate mf growth rate
-        self.growthrate = getattr(self, f"{method}_growthrate")
+        # # Calculate mf growth rate
+        # self.growthrate = getattr(self, f"{method}_growthrate")
+
 
     def run_spinup(self, nyears=5):
         """Spin model up
@@ -229,7 +200,7 @@ class Invert(Inverse_method, Plot):
         self.mod.run(verbose=False)
 
         # Need to overwrite prior model
-        self.mod_prior = Prior_model(self.mod)
+        self.mod_prior = Store_model(self.mod)
 
 
     def change_start_year(self, start_year):
@@ -279,7 +250,7 @@ class Invert(Inverse_method, Plot):
         if not np.allclose(self.mod.time, self.mod_prior.time):
             raise Exception('''Prior model has become mis-aligned with model,
                                 probably because start or end dates have been changed.
-                                Before calculating sensitivity, re-run model and store Prior_model''')
+                                Before calculating sensitivity, re-run model and store Store_model''')
 
         if not np.allclose(self.mod.time, self.obs.time):
             raise Exception('''Model has become mis-aligned with obs,
@@ -358,6 +329,91 @@ class Invert(Inverse_method, Plot):
         self.mat.P_inv = np.linalg.inv(np.diag(np.ones(nx)*sigma_P**2))
     
         self.mat.x_a = np.zeros(nx)
+
+
+    def process_outputs(self, n_sample=1000,
+                            scale_error=0.,
+                            lifetime_error=0.,
+                            transport_error=0.01,
+                            uncertainty="1-sigma"):
+        """Generate a set of outputs based on posterior solution
+
+        Parameters
+        ----------
+        uncertainty : str, optional
+            Uncertainty measure, by default "1-sigma"
+            Can be "N-sigma", "N-percent" (not implemented yet)
+            where N is an integer
+        """
+
+        emissions_ensemble, \
+        mf_ensemble = self.posterior_ensemble(n_sample=n_sample,
+                                            scale_error=scale_error,
+                                            lifetime_error=lifetime_error,
+                                            transport_error=transport_error)
+
+        # Ensemble without systematic uncertainties
+        emissions_ensemble_nosys, \
+        mf_ensemble_nosys = self.posterior_ensemble(n_sample=n_sample,
+                                            scale_error=0.,
+                                            lifetime_error=0.,
+                                            transport_error=0.)
+
+        self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
+                                                        emissions_ensemble,
+                                                        period="annual",
+                                                        globe="sum",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.emissions_global_annual_nosys = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
+                                                        emissions_ensemble_nosys,
+                                                        period="annual",
+                                                        globe="sum",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.emissions_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
+                                                        emissions_ensemble,
+                                                        period="annual",
+                                                        globe="none",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.emissions_annual_nosys = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
+                                                        emissions_ensemble_nosys,
+                                                        period="annual",
+                                                        globe="none",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.emissions = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.emissions,
+                                                        emissions_ensemble,
+                                                        period="monthly",
+                                                        globe="none",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf,
+                                                        mf_ensemble,
+                                                        period="annual",
+                                                        globe="mean",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_global_growth = smooth_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
+                                                        mf_ensemble,
+                                                        globe="mean",
+                                                        growth=True,
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_growth = smooth_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
+                                                        mf_ensemble,
+                                                        globe="none",
+                                                        growth=True,
+                                                        uncertainty=uncertainty)
 
 
 def sensitivity_section(nsens_section, t0, freq_months, mf_ref,

@@ -2,6 +2,7 @@ import altair as alt
 from altair.vegalite.v4.schema.channels import Tooltip
 import pandas as pd
 import numpy as np
+from py12box_invert.utils import decimal_to_pandas as dec_convert
 
 
 box_name = ["30 \u00B0N - 90 \u00B0N", 
@@ -12,28 +13,29 @@ box_name = ["30 \u00B0N - 90 \u00B0N",
 box_color = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA']
 
 
-def dec_to_month(dec_date):
-    """Quick function to convert decimal date array to pandas
+# def dec_to_month(dec_date):
+#     """Quick function to convert decimal date array to pandas
 
-    WARNING: Assumes each month is just 1/12 of the year
+#     WARNING: Assumes each month is just 1/12 of the year
 
-    Parameters
-    ----------
-    dec_date : flt
-        Decimal date
+#     Parameters
+#     ----------
+#     dec_date : flt
+#         Decimal date
 
-    Returns
-    -------
-    pd.Datetime
-        Pandas datetime object
-    """
+#     Returns
+#     -------
+#     pd.Datetime
+#         Pandas datetime object
+#     """
 
-    nt=len(dec_date)
-    dec_date_round = np.round(dec_date, decimals=4)
-    date_out = pd.DataFrame({"year": dec_date_round.astype(int),
-        "month": np.round(((dec_date_round - dec_date_round.astype(int))*12.)) + 1,
-        "day": np.ones(nt)})
-    return pd.to_datetime(date_out)
+#     nt=len(dec_date)
+#     dec_date_round = np.round(dec_date, decimals=4)
+#     date_out = pd.DataFrame({"year": dec_date_round.astype(int),
+#         "month": np.round(((dec_date_round - dec_date_round.astype(int))*12.)) + 1,
+#         "day": np.ones(nt)})
+#     return pd.to_datetime(date_out)
+
 
 
 class Plot:
@@ -43,7 +45,7 @@ class Plot:
         selection = alt.selection_multi(fields=['Box'], bind='legend')
 
         data = pd.concat([pd.DataFrame(
-                data={"Date": dec_to_month(self.obs.time),
+                data={"Date": dec_convert(self.obs.time),
                     "Box": box_name[bi],
                     "Obs": self.obs.mf[:, bi],
                     "Obs_uncertainty": self.obs.mf_uncertainty[:, bi],
@@ -100,13 +102,19 @@ class Plot:
         # Plot the growth rate data
         #
         data_gr = pd.concat([pd.DataFrame(
-            data={"Date": dec_to_month(self.growth_rate.time),
+            data={"Date": dec_convert(self.outputs.mf_growth[0]),
                 "Box": box_name[bi],
-                "GR": self.growth_rate.mf[:, bi],
-                "GR_uncertainty": self.growth_rate.mfsd[:, bi],
-                "zero_line": np.zeros(len(self.growth_rate.time))}
+                "GR": self.outputs.mf_growth[1][:, bi],
+                "GR_uncertainty": self.outputs.mf_growth[2][:, bi]}
             ) for bi in range(4)])
-            
+        
+
+        data_global_gr = pd.DataFrame(
+                            data={"Date": dec_convert(self.outputs.mf_global_growth[0]),
+                                "GR_global": self.outputs.mf_global_growth[1],
+                                "GR_global_uncertainty": self.outputs.mf_global_growth[2]}
+        )
+
         ymin_gr=data_gr["GR"].min()
         ymax_gr=data_gr["GR"].max()
 
@@ -117,39 +125,44 @@ class Plot:
         )
 
         # Plot the zero line for clarity
-        gr_zeros = base_gr.mark_line(color="#000000").encode(
-                x=alt.X("Date:T"),
-                y=alt.Y("zero_line")
-                )
+        overlay = pd.DataFrame({'y': [0]})
+        zline = alt.Chart(overlay).mark_rule().encode(y="y")
 
         # Plot the growth rate
-        gr_plot = base_gr.mark_line().encode( #mark_point(filled=True, size=5).encode(
+        gr_plot = base_gr.mark_line().encode(
                 x=alt.X("Date:T",
                     scale=alt.Scale(domain=(xmin, xmax))),
                 y=alt.Y("GR:Q",
                     title=f"Growth rate (ppt/yr)",
                     scale=alt.Scale(domain=(ymin_gr, ymax_gr))),
-                color="Box:N", 
-                opacity=alt.condition(selection, alt.value(1), alt.value(0.1)),
-                tooltip=["Date", "GR"]
-                )
-
-        # Add error shading
-        gr_error_bars = base_gr.mark_area().encode(
-                x="Date:T",
-                y=alt.Y("ymin_gr:Q", title=""),
-                y2="ymax_gr:Q",
                 color="Box:N",
-                opacity=alt.condition(selection, alt.value(0.4), alt.value(0.1))
+                opacity=alt.condition(selection, alt.value(0.5), alt.value(0.1)),
+#                tooltip=["Date", "GR"]
                 )
 
-        gr_lower = alt.layer(gr_zeros,gr_error_bars,gr_plot).properties(
+        gr_global = alt.Chart(data_global_gr).mark_line(color="black").encode(
+                x=alt.X("Date:T"),
+                y=alt.Y("GR_global:Q")
+                )
+
+        #TODO: Add global uncertainty
+
+        # # Add error shading
+        # gr_error_bars = base_gr.mark_area().encode(
+        #         x="Date:T",
+        #         y=alt.Y("ymin_gr:Q", title=""),
+        #         y2="ymax_gr:Q",
+        #         color="Box:N",
+        #         opacity=alt.condition(selection, alt.value(0.3), alt.value(0.1))
+        #         )
+
+        gr_lower = alt.layer(gr_plot, gr_global).properties(
             width=600,
-            height=150).interactive() 
+            height=150).interactive()
 
         alt.vconcat(mf_upper, gr_lower).add_selection(
             selection, x_domain
-        ).display()  
+        ).display()
         
         
         
@@ -157,16 +170,17 @@ class Plot:
         """
         Plot emissions using altair.
         """
+
         data = pd.DataFrame(
-        data={"Date": dec_to_month(self.mod.time[::12]),
-            "Emissions": self.mod_posterior.annualemissions}
+        data={"Date": dec_convert(self.outputs.emissions_global_annual[0]),
+              "Emissions": self.outputs.emissions_global_annual[1]}
         )
         data = data.set_index('Date')
 
         data_err = pd.DataFrame(
-                data={"Date": dec_to_month(self.mod.time[::12]),
-                    "Emissions": self.mod_posterior.annualemissions,
-                    "Emissions_uncertainty":self.mod_posterior.annualemissionssd}
+                data={"Date": dec_convert(self.outputs.emissions_global_annual[0]),
+                    "Emissions": self.outputs.emissions_global_annual[1],
+                    "Emissions_uncertainty":self.outputs.emissions_global_annual[2]}
                 )
 
         base = alt.Chart(data_err).transform_calculate(
@@ -180,7 +194,7 @@ class Plot:
                                 fields=['Date'], empty='none')
 
         # The basic line
-        line = alt.Chart(source).mark_line(interpolate='basis').encode(
+        line = alt.Chart(source).mark_line().encode(
             x='Date:T',
             y='y:Q',
             color='Legend:N'
