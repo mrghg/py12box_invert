@@ -8,7 +8,6 @@ from py12box_invert.inversion_modules import Inverse_method
 from py12box_invert.utils import Store_model, aggregate_outputs, smooth_outputs
 from py12box.model import Model, core
 
-#from py12box.core import flux_sensitivity
 
 class Matrices:
     """Empty class to store inversion matrices
@@ -33,7 +32,10 @@ class Invert(Inverse_method, Plot):
                         start_year = None,
                         end_year = None,
                         method = "rigby14",
-                        ic_years = 3):
+                        sensitivity_freq = "yearly",
+                        spinup_years = 9,
+                        ic_years = 3,
+                        n_threads = 12):
         """Set up 12-box model inversion class
 
         Parameters
@@ -51,21 +53,49 @@ class Invert(Inverse_method, Plot):
             (i.e., if you want to run through 2000, end_year=2001.), by default None
         method : str, optional
             Inverse method to choose. Must be in inversion_modules, by default "rigby14"
+        sensitivity_freq : str, optional
+            Frequency of emissions sensitivity ("monthly", "quarterly", "yearly"),
+            default is yearly.
+        spinup_years : int, optional
+            Number of years to spin up the model
         ic_years : int, optional
             Number of years to pad the inversion before the first observation
             in order to allow for some spinup/discard years.
             Note that the emissions file must cover the implied period
             (i.e. (year of first obs - ic_years) onwards), by default 3
+        n_threads : int, optional
+            Number of threads for sensitivity calculation
 
         Raises
         ------
         FileNotFoundError
             If obs files not found
         """
+
+        # Some housekeeping
+        ####################################################
+
         # Store name of species
         self.species = species
+
+        # Area to store inversion matrices
+        self.mat = Matrices()
+
+        # Area to store sensitivity
+        self.sensitivity = Sensitivity()
+
+        # Area to store outputs
+        self.outputs = Outputs()
+
+        # Attach inverse method
+        self.inversion = getattr(self, method)
         
+        # Attach methods to process posterior
+        self.posterior = getattr(self, f"{method}_posterior")
+        self.posterior_ensemble = getattr(self, f"{method}_posterior_ensemble")
+
         # Get obs
+        ##################################################
         if not obs_path and not (project_path / f"{species}_obs.csv").exists():
             raise FileNotFoundError("No obs file given.")
         elif (project_path / f"{species}_obs.csv").exists():
@@ -73,23 +103,27 @@ class Invert(Inverse_method, Plot):
         
         self.obs = Obs(obs_path)
 
-        # Get model inputs
+        # Initialise model
+        #################################################
         self.mod = Model(species, project_path)
 
         # Align model and obs, and change start/end dates, if needed
         if ic_years and start_year:
             raise Exception("Can't have both a start_year and ic_year")
 
+        # If initial condition years have been set, move start year back
         if ic_years:
             start_year = int(self.obs.time[np.where(np.isfinite(self.obs.mf))[0][0]]) - \
                 ic_years
 
+        # Change start year, if needed
         if start_year:
             self.change_start_year(start_year)
         else:
             # Align to obs dataset by default
             self.change_start_year(int(self.obs.time[0]))
 
+        # Change end year, if needed
         if end_year:
             self.change_end_year(end_year)
         else:
@@ -97,9 +131,9 @@ class Invert(Inverse_method, Plot):
             self.change_end_year(int(self.obs.time[-1])+1)
             end_year = self.obs.time[-1]
 
-        # Reference run
-        print("Model reference run...")
-        self.mod.run()
+
+        # Reference run, this will likely change, but need something to kick things off
+        self.mod.run(verbose=False)
 
         # Store some inputs and outputs from prior model
         # TODO: Note that use of the change_start_date or Change_end_date methods
@@ -108,30 +142,62 @@ class Invert(Inverse_method, Plot):
         # Check if this is a problem.
         self.mod_prior = Store_model(self.mod)
 
-        # Area to store inversion matrices
-        self.mat = Matrices()
+        # Calculate sensitivity
+        self.run_sensitivity(freq=sensitivity_freq,
+                                nthreads=n_threads)
 
-        # Area to store sensitivity
-        self.sensitivity = Sensitivity()
+        # To spin up and estimate initial conditions, iterate between the two a few times
+        print(f"Spinning up for {spinup_years} years and estimating initial conditions...")
+        for i in range(3):
+            # Spinup, if needed
+            if spinup_years > 0:
+                self.run_spinup(nyears=int(spinup_years/3))
+
+            # Calculate initial conditions.
+            # This needs to happen after the sensitivity calculation
+            self.run_initial_conditions()
+        print("... done")
+
+
+    def run_inversion(self, prior_flux_uncertainty,
+                            n_sample=1000,
+                            scale_error=0.,
+                            lifetime_error=0.,
+                            transport_error=0.01,
+                            output_uncertainty="1-sigma"):
+        """Run inversion and process outputs
+
+        Parameters
+        ----------
+        prior_flux_uncertainty : flt, optional
+            Flux uncertainty in Gg/yr, by default None
+        scale_error : flt, optional
+            Fractional uncertainty in calibration scale (e.g. 0.01 = 1%)
+        lifetime_error : flt, optional
+            Fractional uncertainty due to 1/lifetime (see Rigby, et al., 2014)
+        transport_error : flt, optional
+            Uncertainty due to model transport. By default, 0.01
+        output_uncertainty : str, optional
+            Output uncertainty measure, by default "1-sigma"
+            Can be "N-sigma", "N-percent" (not implemented yet)
+            where N is an integer
+        """
         
-        # #Area to store growth rate
-        # self.growth_rate = Growth_rate()
+        # Set up matrices
+        self.create_matrices(sigma_P=prior_flux_uncertainty)
 
-        # Attach inverse method
-        self.run_inversion = getattr(self, method)
-        
-        # Attach methods to process posterior
-        self.posterior = getattr(self, f"{method}_posterior")
-        self.posterior_ensemble = getattr(self, f"{method}_posterior_ensemble")
+        print("Run inversion...")
+        self.inversion()
+        self.posterior()
+        print("... done")
 
-        self.outputs = Outputs()
-
-        # # Calculate annual emissions and mf with uncertainties
-        # self.annualmf = getattr(self, f"{method}_annualmf")
-        # self.annualemissions = getattr(self, f"{method}_annualemissions")
-        
-        # # Calculate mf growth rate
-        # self.growthrate = getattr(self, f"{method}_growthrate")
+        print("Calculating outputs...")
+        self.process_outputs(n_sample=n_sample,
+                            scale_error=scale_error,
+                            lifetime_error=lifetime_error,
+                            transport_error=transport_error,
+                            uncertainty=output_uncertainty)
+        print("... done")
 
 
     def run_spinup(self, nyears=5):
@@ -149,15 +215,14 @@ class Invert(Inverse_method, Plot):
         """
 
         # Run model repeatedly for first year
-        print(f"Spinning up for {nyears} years...")
-
         for yi in range(nyears):
             self.mod.run(nsteps=15*12, verbose=False)
             self.mod.ic = self.mod.mf_restart[11, :]
     
         self.mod.run(verbose=False)
 
-        print("... done")
+        # Need to overwrite prior model
+        self.mod_prior = Store_model(self.mod)
 
 
     def run_initial_conditions(self):
@@ -231,7 +296,7 @@ class Invert(Inverse_method, Plot):
         #TODO: Add sensitivity?
 
 
-    def run_sensitivity(self, freq="monthly", nthreads=12):
+    def run_sensitivity(self, freq="yearly", nthreads=12):
         """
         Derive linear yearly flux sensitivities
         
@@ -279,7 +344,7 @@ class Invert(Inverse_method, Plot):
         nsens_section = ceil(nsens/nthreads)
         nsens_out = [nsens_section if nsens_section * (t + 1) < nsens else nsens - (nsens_section * t) for t in range(nthreads)]
 
-        print(f"Calculating sensitivity on {nthreads} threads...")
+        print(f"Calculating flux sensitivity on {nthreads} threads...")
 
         with Pool(processes=nthreads) as pool:
 
@@ -346,6 +411,7 @@ class Invert(Inverse_method, Plot):
             where N is an integer
         """
 
+        print("... calculating posterior ensembles")
         emissions_ensemble, \
         mf_ensemble = self.posterior_ensemble(n_sample=n_sample,
                                             scale_error=scale_error,
