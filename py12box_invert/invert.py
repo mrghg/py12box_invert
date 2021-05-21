@@ -170,7 +170,7 @@ class Invert(Inverse_method, Plot):
 
         Parameters
         ----------
-        prior_flux_uncertainty : flt, optional
+        prior_flux_uncertainty : flt
             Flux uncertainty in Gg/yr, by default None
         scale_error : flt, optional
             Fractional uncertainty in calibration scale (e.g. 0.01 = 1%)
