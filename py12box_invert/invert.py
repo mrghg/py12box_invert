@@ -5,7 +5,6 @@ import pickle
 import warnings
 
 from py12box_invert.obs import Obs
-from py12box_invert.plot_altair import Plot
 from py12box_invert.inversion_modules import Inverse_method
 from py12box_invert.utils import Store_model, aggregate_outputs, smooth_outputs
 from py12box.model import Model, core
@@ -27,7 +26,7 @@ class Outputs:
     pass
 
 
-class Invert(Inverse_method, Plot):
+class Invert(Inverse_method):
 
     def __init__(self, project_path, species,
                         obs_path=None, 
@@ -428,6 +427,8 @@ class Invert(Inverse_method, Plot):
                                             scale_error=0.,
                                             lifetime_error=0.,
                                             transport_error=0.)
+
+        self.outputs.species = self.species
 
         self.outputs.mf = (self.obs.time, self.obs.mf, self.obs.mf_uncertainty)
 
