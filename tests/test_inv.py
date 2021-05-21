@@ -1,5 +1,4 @@
 from py12box_invert.paths import Paths
-from py12box_invert.obs import Obs
 from py12box_invert.invert import Invert, Store_model
 import numpy as np
 
@@ -96,7 +95,7 @@ def test_matrices():
 
 def test_inversion():
 
-    inv.run_inversion()
+    inv.inversion()
     
     # Has a posterior solution been found, and does it take reasonable values
     # Not the best test ever written...

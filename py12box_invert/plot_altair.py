@@ -13,31 +13,6 @@ box_name = ["30 \u00B0N - 90 \u00B0N",
 box_color = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA']
 
 
-# def dec_to_month(dec_date):
-#     """Quick function to convert decimal date array to pandas
-
-#     WARNING: Assumes each month is just 1/12 of the year
-
-#     Parameters
-#     ----------
-#     dec_date : flt
-#         Decimal date
-
-#     Returns
-#     -------
-#     pd.Datetime
-#         Pandas datetime object
-#     """
-
-#     nt=len(dec_date)
-#     dec_date_round = np.round(dec_date, decimals=4)
-#     date_out = pd.DataFrame({"year": dec_date_round.astype(int),
-#         "month": np.round(((dec_date_round - dec_date_round.astype(int))*12.)) + 1,
-#         "day": np.ones(nt)})
-#     return pd.to_datetime(date_out)
-
-
-
 class Plot:
     
     def plot_mf(self):
