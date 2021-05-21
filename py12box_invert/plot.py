@@ -142,10 +142,11 @@ def plot_mf(inv):
         width=600,
         height=150).interactive()
 
-    alt.vconcat(mf_upper, gr_lower).add_selection(
-        selection, x_domain
-    ).display()
+    combined_plot = alt.vconcat(mf_upper, gr_lower).add_selection(
+                                selection, x_domain
+                                )
     
+    return combined_plot
     
     
 def plot_emissions(inv):
@@ -192,5 +193,5 @@ def plot_emissions(inv):
         y2="ymax:Q",
     )
 
-    (emissions_uncertainty + emissions).interactive().display()
+    return (emissions_uncertainty + emissions).interactive()
 
