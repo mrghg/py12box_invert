@@ -2,6 +2,7 @@ import numpy as np
 from math import ceil
 from multiprocessing import Pool
 import pickle
+import warnings
 
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
@@ -110,7 +111,9 @@ class Invert(Inverse_method, Plot):
 
         # Align model and obs, and change start/end dates, if needed
         if ic_years and start_year:
-            raise Exception("Can't have both a start_year and ic_year")
+            #raise Exception("Can't have both a start_year and ic_year")
+            warnings.warn("Can't have both a start_year and ic_year\n Setting ic_years to None.")
+            ic_years = None
 
         # If initial condition years have been set, move start year back
         if ic_years:
