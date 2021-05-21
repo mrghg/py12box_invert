@@ -426,6 +426,34 @@ class Invert(Inverse_method, Plot):
                                             lifetime_error=0.,
                                             transport_error=0.)
 
+        self.outputs.mf = (self.obs.time, self.obs.mf, self.obs.mf_uncertainty)
+
+        self.outputs.mf_model = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf,
+                                                        mf_ensemble,
+                                                        period="monthly",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf,
+                                                        mf_ensemble,
+                                                        period="annual",
+                                                        globe="mean",
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_global_growth = smooth_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
+                                                        mf_ensemble,
+                                                        globe="mean",
+                                                        growth=True,
+                                                        uncertainty=uncertainty)
+
+        self.outputs.mf_growth = smooth_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
+                                                        mf_ensemble,
+                                                        growth=True,
+                                                        uncertainty=uncertainty)
+
         self.outputs.emissions_global_annual = aggregate_outputs(self.mod_posterior.time,
                                                         self.mod_posterior.emissions,
                                                         emissions_ensemble,
@@ -461,26 +489,6 @@ class Invert(Inverse_method, Plot):
                                                         globe="none",
                                                         uncertainty=uncertainty)
 
-        self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.time,
-                                                        self.mod_posterior.mf,
-                                                        mf_ensemble,
-                                                        period="annual",
-                                                        globe="mean",
-                                                        uncertainty=uncertainty)
-
-        self.outputs.mf_global_growth = smooth_outputs(self.mod_posterior.time,
-                                                        self.mod_posterior.mf[:, :4],
-                                                        mf_ensemble,
-                                                        globe="mean",
-                                                        growth=True,
-                                                        uncertainty=uncertainty)
-
-        self.outputs.mf_growth = smooth_outputs(self.mod_posterior.time,
-                                                        self.mod_posterior.mf[:, :4],
-                                                        mf_ensemble,
-                                                        globe="none",
-                                                        growth=True,
-                                                        uncertainty=uncertainty)
 
     def save(self, output_filepath):
         """Save outputs
