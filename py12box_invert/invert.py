@@ -1,6 +1,7 @@
 import numpy as np
 from math import ceil
 from multiprocessing import Pool
+import pickle
 
 from py12box_invert.obs import Obs
 from py12box_invert.plot_altair import Plot
@@ -481,6 +482,19 @@ class Invert(Inverse_method, Plot):
                                                         growth=True,
                                                         uncertainty=uncertainty)
 
+    def save(self, output_filepath):
+        """Save outputs
+
+        Save the contents of Invert.outputs
+
+        Parameters
+        ----------
+        output_filepath : path object
+            Output filepath
+        """
+
+        pickle.dump(self.outputs, open(output_filepath, "wb"))
+        
 
 def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
                         ic, emissions, mol_mass, lifetime,
