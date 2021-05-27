@@ -73,6 +73,8 @@ class Invert(Inverse_method):
             If obs files not found
         """
 
+        print(f"Setting up inversion for {species}\n")
+
         # Some housekeeping
         ####################################################
 
@@ -200,7 +202,7 @@ class Invert(Inverse_method):
                             lifetime_error=lifetime_error,
                             transport_error=transport_error,
                             uncertainty=output_uncertainty)
-        print("... done")
+        print("... done\n")
 
 
     def run_spinup(self, nyears=5):
