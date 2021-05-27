@@ -3,6 +3,7 @@ from scipy.optimize import minimize
 
 from py12box_invert.utils import Store_model
 
+
 def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat):
     """Calculate linear adjustment to mole fraction
 
@@ -104,6 +105,34 @@ def calc_lifetime_uncertainty(lifetime_fractional_error, steady_state_lifetime, 
     lifetime_uncertainty = burden_scaled * lifetime_fractional_error / steady_state_lifetime / 1e9
 
     return lifetime_uncertainty
+
+
+
+def difference_operator(nx, freq):
+    """Calculate differencing operator
+
+    Differenes are calculated between quantities separated by one year
+    Hence frequency term is required, which tells us the number of 
+    elements between years
+
+    Assumes that there are four time series stacked vertically, one for 
+    each surface box (i.e. box 0 is 0 -> n/4-1, etc.)
+
+    Parameters
+    ----------
+    nx : int
+        Number of elements in state vector
+    freq : int
+        Number of state vector elements between subsequent years
+    """
+
+    D = np.zeros((nx, nx))
+    for xi in range(nx):
+        if (xi % (nx/4)) < (nx/4 - freq):
+            D[xi, xi] = -1.
+            D[xi, xi + freq] = 1.
+    
+    return D
 
 
 class Inverse_method:
@@ -243,11 +272,7 @@ class Inverse_method:
         
         # Difference operator
         nx = len(self.mat.x_a)
-        D = np.zeros((nx, nx))
-        for xi in range(nx):
-            if (xi % (nx/4)) != nx/4 - 1:
-                D[xi, xi] = -1.
-                D[xi, xi+1] = 1.
+        D = difference_operator(nx, self.sensitivity.freq)
 
         H = self.mat.H.copy()
 
