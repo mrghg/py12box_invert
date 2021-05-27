@@ -271,8 +271,7 @@ class Inverse_method:
         """
         
         # Difference operator
-        nx = len(self.mat.x_a)
-        D = difference_operator(nx, self.sensitivity.freq)
+        D = difference_operator(len(self.mat.x_a), int(12/self.sensitivity.freq_months))
 
         H = self.mat.H.copy()
 
