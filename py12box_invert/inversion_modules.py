@@ -3,6 +3,7 @@ from scipy.optimize import minimize
 
 from py12box_invert.utils import Store_model
 
+
 def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat):
     """Calculate linear adjustment to mole fraction
 
@@ -106,11 +107,43 @@ def calc_lifetime_uncertainty(lifetime_fractional_error, steady_state_lifetime, 
     return lifetime_uncertainty
 
 
+
+def difference_operator(nx, freq):
+    """Calculate differencing operator
+
+    Differences are calculated between quantities separated by one year
+    Hence frequency term is required, which tells us the number of 
+    elements between years
+
+    Parameters
+    ----------
+    nx : int
+        Number of elements in state vector
+    freq : int
+        Number of state vector elements between years
+    """
+
+    D = np.zeros((nx, nx))
+
+    for bi in range(4):
+        for yi in range(int(nx/freq/4)-1):
+            for fi in range(freq):
+                xi = 4*(yi*freq + fi) + bi
+                D[xi, xi] = -1.
+                D[xi, xi + 4*freq] = 1.
+    
+    return D
+
+
 class Inverse_method:
     """Inverse method modules
 
     Each method must have a corresponding {method}_posterior function that allows
     posterior mole fraction and emissions matrices to be calculated
+
+    Each method must also have a corresponding {method}_posterior_ensemble function
+    that calculates an ensemble of model outputs (potentially including systematic
+    uncertainties)
     """
 
     def analytical_gaussian(self):
@@ -242,12 +275,7 @@ class Inverse_method:
         """
         
         # Difference operator
-        nx = len(self.mat.x_a)
-        D = np.zeros((nx, nx))
-        for xi in range(nx):
-            if (xi % (nx/4)) != nx/4 - 1:
-                D[xi, xi] = -1.
-                D[xi, xi+1] = 1.
+        D = difference_operator(len(self.mat.x_a), int(12/self.sensitivity.freq_months))
 
         H = self.mat.H.copy()
 
