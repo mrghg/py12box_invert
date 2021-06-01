@@ -214,6 +214,14 @@ def decimal_date(date):
 
 
 def decimal_to_pandas(dec):
+    """
+    Convert decimal date to pandas datetime
+    
+        Parameters:
+            dec (float): Decimal dates to convert
+        Returns:
+            List of pandas datetimes
+    """
 
     dates = []
     for f in dec:
@@ -242,36 +250,3 @@ def round_date(date):
     return np.round(date*12)/12.
 
 
-def mf_to_csv(savepath, model_mf, species, comment=None):
-    """
-    Write Global and hemispheric mole fractions to csv
-    """
-    savedir = savepath / "molefraction" / "csv"
-    if not savedir.exists():
-        savedir.mkdir(parents=True)
-    savename = species+"_mf_"+str(pd.to_datetime("today"))[:10]+".csv"
-    f = open(savedir / savename, 'w')
-    if comment is not None:
-        if "\n" not in comment[-4:]:
-            comment += "\n"
-        f.write(comment)
-    model_mf.to_csv(f)
-    f.close()
-
-
-def emissions_to_csv(savepath, model_emissions, species, comment=None):
-    """
-    Write emissions to csv 
-    
-    """
-    savedir = savepath / "emissions" / "csv"
-    if not savedir.exists():
-        savedir.mkdir(parents=True)
-    savename = species+"_emissions_"+str(pd.to_datetime("today"))[:10]+".csv"
-    f = open(savedir / savename, 'w')
-    if comment is not None:
-        if "\n" not in comment[-4:]:
-            comment += "\n"
-        f.write(comment)
-    model_emissions.to_csv(f)
-    f.close()
