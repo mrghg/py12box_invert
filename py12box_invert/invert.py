@@ -175,7 +175,7 @@ class Invert(Inverse_method):
         Parameters
         ----------
         prior_flux_uncertainty : flt
-            Flux uncertainty in Gg/yr, by default None
+            Flux uncertainty as fraction of emissions in each box, by default None
         scale_error : flt, optional
             Fractional uncertainty in calibration scale (e.g. 0.01 = 1%)
         lifetime_error : flt, optional
@@ -396,7 +396,15 @@ class Invert(Inverse_method):
     
         #TODO: Function to choose emissions uncertainty method
         # this is just a placeholder
-        self.mat.P_inv = np.linalg.inv(np.diag(np.ones(nx)*sigma_P**2))
+        freq_months = self.sensitivity.freq_months
+        nsens = int(len(self.mod_prior.time)/self.sensitivity.freq_months)
+        P_sigma = np.zeros(nsens*4)
+        for ti in range(nsens):
+            for bi in range(4):
+                P_sigma[ti*4 + bi] = self.mod_prior.emissions[(ti)*freq_months:freq_months*(ti+1), bi].mean()
+        P_sigma[P_sigma <= 0.1] = 0.1 # Don't let uncertainty fall below 0.1 Gg 
+        self.mat.P_inv = np.linalg.inv(np.diag((P_sigma*sigma_P)**2))
+        #self.mat.P_inv = np.linalg.inv(np.diag(np.ones(nx)*sigma_P**2))
     
         self.mat.x_a = np.zeros(nx)
 
