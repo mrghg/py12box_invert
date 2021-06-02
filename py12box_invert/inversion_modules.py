@@ -134,6 +134,23 @@ def difference_operator(nx, freq):
     
     return D
 
+def lat_difference_operator(nx):
+    """Calculate latitude differencing operator
+
+    Differences are calculated between boxes
+
+    Parameters
+    ----------
+    nx : int
+        Number of elements in state vector
+    """
+    
+    D_lat = np.zeros((nx, nx))
+    for xi in range(nx-1):       
+        if (xi+1) % 4:
+            D_lat[xi,xi] = -1
+            D_lat[xi, xi + 1] = 1.
+    return D_lat
 
 class Inverse_method:
     """Inverse method modules
@@ -276,12 +293,15 @@ class Inverse_method:
         
         # Difference operator
         D = difference_operator(len(self.mat.x_a), int(12/self.sensitivity.freq_months))
-
+        D_lat = lat_difference_operator(len(self.mat.x_a)) 
+    
         H = self.mat.H.copy()
 
         R_inv = np.linalg.inv(self.mat.R)
-        self.mat.P_hat = np.linalg.inv(H.T @ R_inv @ H + D.T @ self.mat.P_inv @ D)
-        self.mat.x_hat = self.mat.P_hat @ (H.T @ R_inv @ self.mat.y + D.T @ self.mat.P_inv @ self.mat.x_a)
+        self.mat.P_hat = np.linalg.inv(H.T @ R_inv @ H + D.T @ self.mat.P_inv @ D + D_lat.T @ self.mat.Slat_inv @ D_lat)
+        self.mat.x_hat = self.mat.P_hat @ (H.T @ R_inv @ self.mat.y + \
+                                           D.T @ self.mat.P_inv @ self.mat.x_a + \
+                                           D_lat.T @ self.mat.Slat_inv @ self.mat.x_a)
         
         
     def rigby14_posterior(self):

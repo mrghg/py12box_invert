@@ -411,6 +411,17 @@ class Invert(Inverse_method):
     
         # Prior parameters vector
         self.mat.x_a = np.zeros(nx)
+        
+        # Uncertatinty between boxes - this might duplicate from other branch.
+        # Delete lines below if so.
+        freq_months = self.sensitivity.freq_months
+        nsens = int(len(self.mod_prior.time)/self.sensitivity.freq_months)
+        P_sigma = np.zeros(nsens*4)
+        for ti in range(nsens):
+            for bi in range(4):
+                P_sigma[ti*4 + bi] = self.mod_prior.emissions[(ti)*freq_months:freq_months*(ti+1), bi].mean()
+        P_sigma[P_sigma <= 0.1] = 0.1 # Don't let uncertainty fall below 0.1 Gg .
+        self.mat.Slat_inv = np.diag(1./P_sigma)
 
 
     def process_outputs(self, n_sample=1000,
