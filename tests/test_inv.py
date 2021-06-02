@@ -71,7 +71,7 @@ def test_matrices():
 
     inv.run_sensitivity("yearly")
 
-    inv.create_matrices(sigma_P=10.)
+    inv.create_matrices(sigma_P=[10., 1., 1., 1.])
 
     # Check that sensitivity matrix has same number of rows as number of finite obs
     assert inv.mat.H.shape[0] == int(np.isfinite(inv.obs.mf).sum())
