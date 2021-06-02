@@ -308,12 +308,7 @@ class Inverse_method:
         H = self.mat.H.copy()
         R_inv = np.linalg.inv(self.mat.R)
         # Difference operator
-        nx = len(self.mat.x_a)
-        D = np.zeros((nx, nx))
-        for xi in range(nx):
-            if (xi % (nx/4)) != nx/4 - 1:
-                D[xi, xi] = -1.
-                D[xi, xi+1] = 1.
+        D = difference_operator(len(self.mat.x_a), int(12/self.sensitivity.freq_months))
         #Lower limit
         freq_months = self.sensitivity.freq_months
         apriori = self.mod_prior.emissions.copy()
@@ -362,13 +357,7 @@ class Inverse_method:
         H = self.mat.H.copy()
         R = self.mat.R
         # Difference operator
-        nx = len(self.mat.x_a)
-        ny = len(self.mat.y)
-        D = np.zeros((nx, nx))
-        for xi in range(nx):
-            if (xi % (nx/4)) != nx/4 - 1:
-                D[xi, xi] = -1.
-                D[xi, xi+1] = 1.
+        D = difference_operator(len(self.mat.x_a), int(12/self.sensitivity.freq_months))
         #Lower limit
         freq_months = self.sensitivity.freq_months
         apriori = self.mod_prior.emissions.copy()

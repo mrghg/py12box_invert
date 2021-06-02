@@ -174,8 +174,8 @@ class Invert(Inverse_method):
 
         Parameters
         ----------
-        prior_flux_uncertainty : flt
-            Flux uncertainty in Gg/yr, by default None
+        prior_flux_uncertainty : list
+            Flux uncertainty in each box in Gg/yr
         scale_error : flt, optional
             Fractional uncertainty in calibration scale (e.g. 0.01 = 1%)
         lifetime_error : flt, optional
@@ -391,13 +391,25 @@ class Invert(Inverse_method):
         # Flatten model outputs, noting that all 12 boxes are output (compared to 4 for obs)
         self.mat.y = self.obs.mf[:, :4].flatten()[self.mat.wh_obs] - self.mod_prior.mf[:, :4].flatten()[self.mat.wh_obs]
 
-        #TODO: Functions to choose uncertainty estimation method
+        #TODO: Functions to choose obs uncertainty estimation method
         self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[self.mat.wh_obs]**2)
     
         #TODO: Function to choose emissions uncertainty method
         # this is just a placeholder
-        self.mat.P_inv = np.linalg.inv(np.diag(np.ones(nx)*sigma_P**2))
+        nsens = int(len(self.mod_prior.time)/self.sensitivity.freq_months)
+
+        if len(sigma_P) != 4:
+            raise NotImplementedError("Currently, you must specify the uncertainty in each surface box")
+        
+        P_diag = np.zeros(nsens*4)
+        for ti in range(nsens):
+            for bi in range(4):
+                P_diag[ti*4 + bi] = sigma_P[bi]
+        P_diag[P_diag == 0.] = 1e-12
+
+        self.mat.P_inv = np.linalg.inv(np.diag(P_diag**2))
     
+        # Prior parameters vector
         self.mat.x_a = np.zeros(nx)
 
 
