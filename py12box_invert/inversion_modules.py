@@ -107,7 +107,6 @@ def calc_lifetime_uncertainty(lifetime_fractional_error, steady_state_lifetime, 
     return lifetime_uncertainty
 
 
-
 def difference_operator(nx, freq):
     """Calculate differencing operator
 

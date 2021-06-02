@@ -79,8 +79,8 @@ def plot_mf(inv):
     )
 
     mf_upper = alt.layer(obs_plot, error_bars, mod_plot).properties(
-            width=600,
-            height=400).interactive()
+            width=400,
+            height=300).interactive()
     
     #
     # Plot the growth rate data
@@ -139,7 +139,7 @@ def plot_mf(inv):
             )
 
     gr_lower = alt.layer(gr_plot, gr_global, gr_error_bars).properties(
-        width=600,
+        width=400,
         height=150).interactive()
 
     combined_plot = alt.vconcat(mf_upper, gr_lower).add_selection(
@@ -193,5 +193,7 @@ def plot_emissions(inv):
         y2="ymax:Q",
     )
 
-    return (emissions_uncertainty + emissions).interactive()
+    return (emissions_uncertainty + emissions).properties(
+                width=400, height=400
+                ).interactive()
 
