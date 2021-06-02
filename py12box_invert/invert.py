@@ -165,6 +165,7 @@ class Invert(Inverse_method):
 
 
     def run_inversion(self, prior_flux_uncertainty,
+                            prior_latconstraint_uncertainty = [100.,100.,100.],
                             n_sample=1000,
                             scale_error=0.,
                             lifetime_error=0.,
@@ -176,6 +177,8 @@ class Invert(Inverse_method):
         ----------
         prior_flux_uncertainty : list
             Flux uncertainty in each box in Gg/yr
+        prior_latconstraint_uncertainty: list
+            Flux uncertainty between boxes in Gg/yr
         scale_error : flt, optional
             Fractional uncertainty in calibration scale (e.g. 0.01 = 1%)
         lifetime_error : flt, optional
@@ -189,7 +192,7 @@ class Invert(Inverse_method):
         """
         
         # Set up matrices
-        self.create_matrices(sigma_P=prior_flux_uncertainty)
+        self.create_matrices(sigma_P=prior_flux_uncertainty, sigma_Slat=prior_latconstraint_uncertainty)
 
         print("Run inversion...")
         self.inversion()
@@ -374,7 +377,7 @@ class Invert(Inverse_method):
         print("... done")
 
 
-    def create_matrices(self, sigma_P=None):
+    def create_matrices(self, sigma_P=None, sigma_Slat=None):
         """Set up matrices for inversion
 
         Parameters
@@ -412,17 +415,16 @@ class Invert(Inverse_method):
         # Prior parameters vector
         self.mat.x_a = np.zeros(nx)
         
-        # Uncertatinty between boxes - this might duplicate from other branch.
-        # Delete lines below if so.
-        freq_months = self.sensitivity.freq_months
-        nsens = int(len(self.mod_prior.time)/self.sensitivity.freq_months)
-        P_sigma = np.zeros(nsens*4)
+        # Uncertatinty between boxes or "lat constraint"
+        # Slat matrix can't have zeros on diagonal so duplicate
+        # 3rd entry to 4th
+        sigma_Slat = np.append(sigma_Slat, sigma_Slat[2])
+        Slat_diag = np.zeros(nsens*4)
         for ti in range(nsens):
             for bi in range(4):
-                P_sigma[ti*4 + bi] = self.mod_prior.emissions[(ti)*freq_months:freq_months*(ti+1), bi].mean()
-        P_sigma[P_sigma <= 0.1] = 0.1 # Don't let uncertainty fall below 0.1 Gg .
-        self.mat.Slat_inv = np.diag(1./P_sigma)
-
+                Slat_diag[ti*4 + bi] = sigma_Slat[bi]
+        Slat_diag[Slat_diag == 0.] = 1e-12
+        self.mat.Slat_inv = np.linalg.inv(np.diag(Slat_diag**2))
 
     def process_outputs(self, n_sample=1000,
                             scale_error=0.,
