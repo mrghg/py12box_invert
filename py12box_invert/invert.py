@@ -3,6 +3,7 @@ from math import ceil
 from multiprocessing import Pool
 import pickle
 import warnings
+import pandas as pd
 
 from py12box_invert.obs import Obs
 from py12box_invert.inversion_modules import Inverse_method
@@ -521,6 +522,80 @@ class Invert(Inverse_method):
         """
 
         pickle.dump(self.outputs, open(output_filepath, "wb"))
+        
+    def to_csv(self, output_directory):
+        """
+        Write outputs to csv
+        
+        Parameters
+        ----------
+        output_directory : path object
+            Output directory
+        """
+        long_names = {'mf':'Semihemispheric mole fractions', 
+          'mf_model' : 'Semihemispheric modelled mole fractions', 
+          'mf_global_annual' : 'Global annual mole fraction', 
+          'mf_global_growth' : 'Global mole fraction growth rate', 
+          'mf_growth' : 'Semihemispheric mole fraction growth rate', 
+          'emissions_global_annual' : 'Global annual emissions', 
+          'emissions_global_annual_nosys' : 'Global annual emissions with no systematic uncertainty', 
+          'emissions_annual' : 'Semihemispheric annual emissions', 
+          'emissions_annual_nosys' :  'Semihemispheric annual emissions with no systematic uncertainty', 
+          'emissions' : 'Semihemispheric monthly emissions'}
+
+        def write_comment_string(var_name, outvars):
+            # Write metadata
+            if "mf" in var_name:
+                units = "ppt"
+            elif "emissions" in var_name:
+                units = "Gg/yr"
+            else:
+                raise NotImplementedError("This variable currently has no units set")
+                units = ""
+            comment_string = f"# {long_names[var_name]} for {outvars['species']} \n"
+            comment_string += "# Outputs from AGAGE 12-box model \n"
+            comment_string += "# Contact Matt Rigby or Luke Western (University of Bristol) \n"
+            comment_string += "# matt.rigby@bristol.ac.uk/luke.western@bristol.ac.uk \n"
+            comment_string += f"# File created {str(pd.to_datetime('today', utc=True))} \n"
+            comment_string += f"# Units: {units} \n"
+
+            return comment_string
+
+        def global_df(outvars, var_name):
+            # Make dataframe for global outputs
+            column_name = long_names[var_name].replace(" ", "_")
+            df = pd.DataFrame(data=np.array(outvars[var_name]).T, 
+                              columns=["Time", column_name, f"{column_name}_sd"])
+            return df
+
+        def box_df(outvars, var_name):
+            # Make dataframe for per box outputs
+            column_name = long_names[var_name].replace(" ", "_")
+            data_tup = outvars[var_name]
+            dlist = [d for d in outvars[var_name]]
+            nout_box = outvars[var_name][1].shape[1]
+            nout_box_sd = outvars[var_name][2].shape[1]
+            columns = ["Time"] + \
+                      [f"{column_name}_box{box}" for box in range(nout_box)] + \
+                      [f"{column_name}_sd_box{box}" for box in range(nout_box_sd)]
+            data = np.concatenate([np.expand_dims(dlist[0], axis=1), np.concatenate(dlist[1:], axis=1)], axis=1)
+            df = pd.DataFrame(data=data, columns=columns)
+            return df
+
+        outvars_keys = list(self.outputs.__dict__.keys())[1:]
+        outvars = self.outputs.__dict__
+        
+        # Loop over outputs and write
+        for var_name in outvars_keys:
+            comment_string = write_comment_string(var_name, outvars)
+            if "global" in var_name:
+                data_df = global_df(outvars, var_name)
+            else:
+                data_df = box_df(outvars, var_name)
+
+            with open(output_directory / f"{outvars['species']}_{long_names[var_name].replace(' ','_')}_agage.csv", 'w') as fout:
+                fout.write(comment_string)
+                data_df.to_csv(fout, index=False)
         
 
 def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
