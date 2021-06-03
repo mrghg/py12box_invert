@@ -136,7 +136,6 @@ class Invert(Inverse_method):
             self.change_end_year(int(self.obs.time[-1])+1)
             end_year = self.obs.time[-1]
 
-
         # Reference run, this will likely change, but need something to kick things off
         self.mod.run(verbose=False)
 
@@ -393,7 +392,9 @@ class Invert(Inverse_method):
 
         #TODO: Functions to choose obs uncertainty estimation method
         self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[self.mat.wh_obs]**2)
-    
+        if np.isnan(self.mat.R).any():
+            raise Exception("Missing measurement errors for some observations.")
+            
         #TODO: Function to choose emissions uncertainty method
         # this is just a placeholder
         nsens = int(len(self.mod_prior.time)/self.sensitivity.freq_months)
