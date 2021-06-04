@@ -561,23 +561,29 @@ class Invert(Inverse_method):
 
             return comment_string
 
-        def global_df(outvars, var_name):
+        def global_df(outvars, var_name, uncertainty_string="sd"):
             # Make dataframe for global outputs
             column_name = long_names[var_name].replace(" ", "_")
-            df = pd.DataFrame(data=np.array(outvars[var_name]).T, 
-                              columns=["Time", column_name, f"{column_name}_sd"])
+
+            # Start dataframe with column containing only the year
+            df = pd.DataFrame(data = np.array(outvars[var_name][0]).astype(int),
+                            columns=["Year"])
+            df["Decimal_date"] = outvars[var_name][0]
+            df[column_name] = outvars[var_name][1]
+            df[f"{column_name}_{uncertainty_string}"] = outvars[var_name][2]
+
             return df
 
-        def box_df(outvars, var_name):
+        def box_df(outvars, var_name, uncertainty_string="sd"):
             # Make dataframe for per box outputs
             column_name = long_names[var_name].replace(" ", "_")
-            data_tup = outvars[var_name]
+            #data_tup = outvars[var_name]
             dlist = [d for d in outvars[var_name]]
             nout_box = outvars[var_name][1].shape[1]
             nout_box_sd = outvars[var_name][2].shape[1]
             columns = ["Time"] + \
                       [f"{column_name}_box{box}" for box in range(nout_box)] + \
-                      [f"{column_name}_sd_box{box}" for box in range(nout_box_sd)]
+                      [f"{column_name}_{uncertainty_string}_box{box}" for box in range(nout_box_sd)]
             data = np.concatenate([np.expand_dims(dlist[0], axis=1), np.concatenate(dlist[1:], axis=1)], axis=1)
             df = pd.DataFrame(data=data, columns=columns)
             return df
