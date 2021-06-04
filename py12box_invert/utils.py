@@ -213,7 +213,7 @@ def decimal_date(date):
     return (date.year + (date.dayofyear-1.)/days_in_year + date.hour/24.).to_numpy()
 
 
-def decimal_to_pandas(dec):
+def decimal_to_pandas(dec, offset_days=0):
     """
     Convert decimal date to pandas datetime
     
@@ -228,7 +228,8 @@ def decimal_to_pandas(dec):
         year = int(f)
         yeardatetime = dt.datetime(year, 1, 1)
         daysPerYear = 365 + calendar.leapdays(year, year+1)
-        dates.append(pd.Timestamp(yeardatetime + dt.timedelta(days = daysPerYear*(f - year))))
+        days=int(daysPerYear*(f - year))
+        dates.append(pd.Timestamp(yeardatetime + dt.timedelta(days=days) + dt.timedelta(days=offset_days)))
 
     return dates
 
@@ -249,4 +250,4 @@ def round_date(date):
 
     return np.round(date*12)/12.
 
-
+            

@@ -3,10 +3,11 @@ from math import ceil
 from multiprocessing import Pool
 import pickle
 import warnings
+import pandas as pd
 
 from py12box_invert.obs import Obs
 from py12box_invert.inversion_modules import Inverse_method
-from py12box_invert.utils import Store_model, aggregate_outputs, smooth_outputs
+from py12box_invert.utils import Store_model, aggregate_outputs, decimal_to_pandas, smooth_outputs
 from py12box.model import Model, core
 
 
@@ -135,7 +136,6 @@ class Invert(Inverse_method):
             #Align to obs dataset by default
             self.change_end_year(int(self.obs.time[-1])+1)
             end_year = self.obs.time[-1]
-
 
         # Reference run, this will likely change, but need something to kick things off
         self.mod.run(verbose=False)
@@ -393,7 +393,9 @@ class Invert(Inverse_method):
 
         #TODO: Functions to choose obs uncertainty estimation method
         self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[self.mat.wh_obs]**2)
-    
+        if np.isnan(self.mat.R).any():
+            raise Exception("Missing measurement errors for some observations.")
+            
         #TODO: Function to choose emissions uncertainty method
         # this is just a placeholder
         nsens = int(len(self.mod_prior.time)/self.sensitivity.freq_months)
@@ -442,7 +444,12 @@ class Invert(Inverse_method):
                                             lifetime_error=0.,
                                             transport_error=0.)
 
+        # Store some basic info
         self.outputs.species = self.species
+        self.outputs.uncertainty = uncertainty
+        # Find first timestep with finite obs
+        wh = np.where(np.isfinite(self.obs.mf))
+        self.outputs.first_year = int(self.obs.time[wh[0][0]])
 
         self.outputs.mf = (self.obs.time, self.obs.mf, self.obs.mf_uncertainty)
 
@@ -520,6 +527,106 @@ class Invert(Inverse_method):
         """
 
         pickle.dump(self.outputs, open(output_filepath, "wb"))
+        
+    def to_csv(self, output_directory, project_name=""):
+        """
+        Write outputs to csv
+        
+        Parameters
+        ----------
+        output_directory : path object
+            Output directory
+        """
+
+        def time_df(outvars, var_name):
+            # Create a dataframe with time columns in it
+            decimal_date = outvars[var_name][0]
+            # Adding a time offset to correct annoying issue with converting from 1/12 month
+            timestamps = decimal_to_pandas(decimal_date, offset_days=10)
+            df = pd.DataFrame({"Year": [t.year for t in timestamps],
+                            "Month": [t.month for t in timestamps],
+                            "Decimal_date": np.round(decimal_date, decimals=2)})
+            return df
+
+        def write_comment_string(var_name, outvars):
+            # Write metadata
+            if "mf" in var_name:
+                units = "ppt"
+            elif "emissions" in var_name:
+                units = "Gg/yr"
+            else:
+                raise NotImplementedError(f"Variable {var_name} currently has no units set")
+                units = ""
+            comment_string = f"# {long_names[var_name]} for {outvars['species']} \n"
+            comment_string += "# Outputs from AGAGE 12-box model \n"
+            comment_string += "# Time stamps are the centre of the averaging period \n"
+            comment_string += "# Contact Matt Rigby or Luke Western (University of Bristol) \n"
+            comment_string += "# matt.rigby@bristol.ac.uk/luke.western@bristol.ac.uk \n"
+            comment_string += f"# File created {str(pd.to_datetime('today', utc=True))} \n"
+            comment_string += f"# Units: {units} \n"
+
+            return comment_string
+
+        def global_df(outvars, var_name, uncertainty_string="1-sigma"):
+            # Make dataframe for global outputs
+            column_name = long_names[var_name].replace(" ", "_")
+            df = time_df(outvars, var_name)
+            df[column_name] = outvars[var_name][1]
+            df[f"{column_name}_{uncertainty_string}"] = outvars[var_name][2]
+
+            return df
+
+        def box_df(outvars, var_name, uncertainty_string="1-sigma"):
+            # Make dataframe for per box outputs
+            column_name = long_names[var_name].replace(" ", "_")
+            dlist = [d for d in outvars[var_name]]
+            nout_box = outvars[var_name][1].shape[1]
+            nout_box_sd = outvars[var_name][2].shape[1]
+            columns = [f"{column_name}_box{box}" for box in range(nout_box)] + \
+                      [f"{column_name}_{uncertainty_string}_box{box}" for box in range(nout_box_sd)]
+            data = np.concatenate(dlist[1:], axis=1)
+            data_df = pd.DataFrame(data=data, columns=columns)
+            return pd.concat([time_df(outvars, var_name), data_df], axis=1)
+
+
+        long_names = {'mf':'Semihemispheric mole fractions', 
+          'mf_model' : 'Semihemispheric modelled mole fractions', 
+          'mf_global_annual' : 'Global annual mole fraction', 
+          'mf_global_growth' : 'Global mole fraction growth rate', 
+          'mf_growth' : 'Semihemispheric mole fraction growth rate', 
+          'emissions_global_annual' : 'Global annual emissions', 
+          'emissions_global_annual_nosys' : 'Global annual emissions with no systematic uncertainty', 
+          'emissions_annual' : 'Semihemispheric annual emissions', 
+          'emissions_annual_nosys' :  'Semihemispheric annual emissions with no systematic uncertainty', 
+          'emissions' : 'Semihemispheric monthly emissions'}
+
+        if project_name != "":
+            project_str = project_name + "_"
+        else:
+            project_str = ""
+
+        outvars_keys = list(self.outputs.__dict__.keys())
+        outvars = self.outputs.__dict__
+        
+        # Loop over outputs and write
+        for var_name in outvars_keys:
+            if var_name in long_names.keys():
+                comment_string = write_comment_string(var_name, outvars)
+                if "global" in var_name:
+                    data_df = global_df(outvars, var_name, uncertainty_string=self.outputs.uncertainty)
+                else:
+                    data_df = box_df(outvars, var_name, uncertainty_string=self.outputs.uncertainty)
+
+                # Cut out spinup years
+                data_df = data_df[data_df["Decimal_date"] >= self.outputs.first_year]
+
+                # Output file name
+                fname = f"{project_str}{outvars['species']}_{long_names[var_name].replace(' ','_')}.csv"
+
+                # Write
+                with open(output_directory / fname, 'w') as fout:
+                    fout.write(comment_string)
+                    data_df.to_csv(fout, index=False)
         
 
 def sensitivity_section(nsens_section, t0, freq_months, mf_ref,
