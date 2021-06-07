@@ -295,9 +295,8 @@ class Invert(Inverse_method):
         end_year : flt
             New end year
         """
-
         self.obs.change_end_year(end_year)
-        self.mod.change_end_year(end_year-1/12)
+        self.mod.change_end_year(end_year-1/12+1e-4)
         #TODO: Add sensitivity?
 
 
