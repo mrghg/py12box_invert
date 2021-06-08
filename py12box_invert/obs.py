@@ -53,7 +53,7 @@ class Obs:
                     self.units = split_and_tidy(l)
 
         df = pd.read_csv(obs_file,
-                        comment="#", header=[0, 1], index_col=[0])
+                        comment="#", header=[0, 1], index_col=[0],skipinitialspace=True)
 
         # Convert to decimal date and round to nearest 1/12 month
         self.time = round_date(decimal_date(pd.DatetimeIndex(df.index)))
