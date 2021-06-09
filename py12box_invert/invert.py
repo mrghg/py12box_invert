@@ -450,8 +450,15 @@ class Invert(Inverse_method):
         wh = np.where(np.isfinite(self.obs.mf))
         self.outputs.first_year = int(self.obs.time[wh[0][0]])
 
+        # Store observations
         self.outputs.mf = (self.obs.time, self.obs.mf, self.obs.mf_uncertainty)
 
+        # Store lifetime
+        for s in self.mod.__dict__.keys():
+            if "steady_state_lifetime" in s:
+                setattr(self.outputs, s, getattr(self.mod, s))
+
+        # Store aggregated quantities
         self.outputs.mf_model = aggregate_outputs(self.mod_posterior.time,
                                                         self.mod_posterior.mf,
                                                         mf_ensemble,
