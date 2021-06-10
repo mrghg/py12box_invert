@@ -406,7 +406,10 @@ class Invert(Inverse_method):
         for ti in range(nsens):
             for bi in range(4):
                 P_diag[ti*4 + bi] = sigma_P[bi]
-        P_diag[P_diag == 0.] = 1e-12
+
+        # Check if there are any zero uncertainties
+        if sum(P_diag == 0) > 0:
+            raise Exception("P_sigma contains zeros")
 
         self.mat.P_inv = np.linalg.inv(np.diag(P_diag**2))
     
