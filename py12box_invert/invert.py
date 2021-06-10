@@ -406,7 +406,7 @@ class Invert(Inverse_method):
         for ti in range(nsens):
             for bi in range(4):
                 P_diag[ti*4 + bi] = sigma_P[bi]
-        P_diag[P_diag == 0.] = 1e-12
+        P_diag[P_diag == 0.] = 1e12
 
         self.mat.P_inv = np.linalg.inv(np.diag(P_diag**2))
     
