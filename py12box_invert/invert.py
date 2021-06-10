@@ -134,7 +134,7 @@ class Invert(Inverse_method):
             self.change_end_year(end_year)
         else:
             #Align to obs dataset by default
-            self.change_end_year(int(self.obs.time[-1])+1)
+            self.change_end_year(int(self.obs.time[-1]))
             end_year = self.obs.time[-1]
 
         # Reference run, this will likely change, but need something to kick things off
@@ -295,10 +295,9 @@ class Invert(Inverse_method):
         end_year : flt
             New end year
         """
+        self.mod.change_end_year(end_year)
         self.obs.change_end_year(end_year)
-        self.mod.change_end_year(end_year-1/12+1e-4)
         #TODO: Add sensitivity?
-
 
     def run_sensitivity(self, freq="yearly", nthreads=12):
         """

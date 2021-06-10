@@ -98,8 +98,8 @@ class Obs:
         end_year : flt
             New end year
         """
-        
-        if float(end_year) < self.time[-1]:
+        if float(end_year) <= self.time[-1]:
+            print("Goes down here")
             # Trim at new end date
             ti = bisect(self.time, float(end_year)) - 1
             self.time = self.time[:ti]
