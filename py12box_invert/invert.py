@@ -468,7 +468,7 @@ class Invert(Inverse_method):
                                                         uncertainty=uncertainty)
 
         self.outputs.mf_global_annual = aggregate_outputs(self.mod_posterior.time,
-                                                        self.mod_posterior.mf,
+                                                        self.mod_posterior.mf[:, :4],
                                                         mf_ensemble,
                                                         period="annual",
                                                         globe="mean",
