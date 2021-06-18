@@ -154,7 +154,7 @@ def test_outputs():
     assert np.allclose(inv.outputs.emissions_annual[1].sum(axis=1), inv.outputs.emissions_global_annual[1])
     
     # Check annual mf
-    assert np.allclose(np.mean(inv.mod_posterior.mf.mean(axis=1).reshape(-1, 12), axis=1), 
+    assert np.allclose(np.mean(inv.mod_posterior.mf[:, :4].mean(axis=1).reshape(-1, 12), axis=1), 
                        inv.outputs.mf_global_annual[1])
     
     #TODO - make a better test for growth rates. Just check that they finite for now
