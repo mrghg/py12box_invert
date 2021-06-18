@@ -607,6 +607,7 @@ class Invert(Inverse_method):
         long_names = {'mf':'Semihemispheric mole fractions', 
           'mf_model' : 'Semihemispheric modelled mole fractions', 
           'mf_global_annual' : 'Global annual mole fraction', 
+          'mf_global_annual_jan' : 'Global annual mole fraction Jan', 
           'mf_global_growth' : 'Global mole fraction growth rate', 
           'mf_growth' : 'Semihemispheric mole fraction growth rate', 
           'emissions_global_annual' : 'Global annual emissions', 
