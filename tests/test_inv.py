@@ -157,9 +157,14 @@ def test_outputs():
     assert np.allclose(np.mean(inv.mod_posterior.mf[:, :4].mean(axis=1).reshape(-1, 12), axis=1), 
                        inv.outputs.mf_global_annual[1])
     
+    # Check jan-centred annual mf
+    assert (inv.outputs.mf_global_annual[1][0] < inv.outputs.mf_global_annual_jan[1][0] < inv.outputs.mf_global_annual[1][1]) or \
+        (inv.outputs.mf_global_annual[1][0] > inv.outputs.mf_global_annual_jan[1][0] > inv.outputs.mf_global_annual[1][1])
+    assert np.allclose(inv.outputs.mf_global_annual_jan[0], np.round(inv.outputs.mf_global_annual_jan[0]), rtol=0.05)
+
     #TODO - make a better test for growth rates. Just check that they finite for now
     assert np.isfinite(inv.outputs.mf_global_growth[1]).all()
     assert np.isfinite(inv.outputs.mf_global_growth[2]).all()
     
-    
+
 

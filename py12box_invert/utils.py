@@ -59,6 +59,7 @@ def aggregate_outputs(time, mean, ensemble,
         Currently, only 1-sigma uncertainties can be output
     """
 
+    _time = time.copy()
     # Add a time aggregation dimension
     _mean = np.expand_dims(mean, axis=1)
     _ensemble = np.expand_dims(ensemble, axis=1)
@@ -77,8 +78,20 @@ def aggregate_outputs(time, mean, ensemble,
         enshape[1] = 3
         meanshape[0] = int(meanshape[0]/3)
         meanshape[1] = 3
+    elif period == "annual-jan":
+        # Chop out first and last 6 months to offset outputs
+        _time = _time[6:meanshape[0]-6]
+        _mean = _mean[6:meanshape[0]-6, :]
+        _ensemble = _ensemble[6:meanshape[0]-6, :, :]
+        meanshape[0] -= 12
+        enshape[0] -= 12
 
-    _time = np.reshape(time, meanshape[:2])
+        enshape[0] = int(enshape[0]/12)
+        enshape[1] = 12
+        meanshape[0] = int(meanshape[0]/12)
+        meanshape[1] = 12
+
+    _time = np.reshape(_time, meanshape[:2])
     _mean = np.reshape(_mean, meanshape)
     _ensemble = np.reshape(_ensemble, enshape)
 

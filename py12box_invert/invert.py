@@ -474,6 +474,13 @@ class Invert(Inverse_method):
                                                         globe="mean",
                                                         uncertainty=uncertainty)
 
+        self.outputs.mf_global_annual_jan = aggregate_outputs(self.mod_posterior.time,
+                                                        self.mod_posterior.mf[:, :4],
+                                                        mf_ensemble,
+                                                        period="annual-jan",
+                                                        globe="mean",
+                                                        uncertainty=uncertainty)
+
         self.outputs.mf_global_growth = smooth_outputs(self.mod_posterior.time,
                                                         self.mod_posterior.mf[:, :4],
                                                         mf_ensemble,
@@ -568,6 +575,11 @@ class Invert(Inverse_method):
             comment_string = f"# {long_names[var_name]} for {outvars['species']} \n"
             comment_string += "# Outputs from AGAGE 12-box model \n"
             comment_string += "# Time stamps are the centre of the averaging period \n"
+            comment_string += "#            ||90-30N| 30-0N| 0-30S | 30-90S\n"
+            comment_string += "#            ||=============================\n"
+            comment_string += "# 1000-500hPa|| Box0 | Box1 | Box2  | Box3\n"
+            comment_string += "#  500-200hPa|| Box4 | Box5 | Box6  | Box7\n"
+            comment_string += "#  200-   hPa|| Box8 | Box9 | Box10 | Box11\n"
             comment_string += "# Contact Matt Rigby or Luke Western (University of Bristol) \n"
             comment_string += "# matt.rigby@bristol.ac.uk/luke.western@bristol.ac.uk \n"
             comment_string += f"# File created {str(pd.to_datetime('today', utc=True))} \n"
@@ -600,6 +612,7 @@ class Invert(Inverse_method):
         long_names = {'mf':'Semihemispheric mole fractions', 
           'mf_model' : 'Semihemispheric modelled mole fractions', 
           'mf_global_annual' : 'Global annual mole fraction', 
+          'mf_global_annual_jan' : 'Global annual mole fraction Jan', 
           'mf_global_growth' : 'Global mole fraction growth rate', 
           'mf_growth' : 'Semihemispheric mole fraction growth rate', 
           'emissions_global_annual' : 'Global annual emissions', 
