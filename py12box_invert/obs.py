@@ -42,7 +42,9 @@ class Obs:
 
         self.scale = "unknown"
         self.units = "unknown"
-
+        scale_dict = {"ppq":1e-3, "ppt":1, "ppb":1e3, "ppm":1e6}
+        mf_scale = 1
+        
         with open(obs_file, "r") as f:
             l = f.readline()
             while l[0] == "#":
@@ -50,7 +52,8 @@ class Obs:
                 if "SCALE: " in l:
                     self.scale = split_and_tidy(l)
                 if "UNITS: " in l:
-                    self.units = split_and_tidy(l)
+                    mf_scale = scale_dict[split_and_tidy(l)]
+                    self.units = "ppt" 
 
         df = pd.read_csv(obs_file,
                         comment="#", header=[0, 1], index_col=[0],skipinitialspace=True)
@@ -59,8 +62,8 @@ class Obs:
         self.time = round_date(decimal_date(pd.DatetimeIndex(df.index)))
 
         # Store mole fraction and uncertainty
-        self.mf = df.xs("mf", level="var", axis=1).values
-        self.mf_uncertainty = df.xs("mf_variability", level="var", axis=1).values
+        self.mf = df.xs("mf", level="var", axis=1).values*mf_scale
+        self.mf_uncertainty = df.xs("mf_variability", level="var", axis=1).values*mf_scale
 
 
     def change_start_year(self, start_year):
