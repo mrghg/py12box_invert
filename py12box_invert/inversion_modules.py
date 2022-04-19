@@ -5,7 +5,7 @@ import pymc3 as pm
 from py12box_invert.utils import Store_model
 
 
-def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat=None):
+def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat, calculate_uncertainty=True):
     """Calculate linear adjustment to emissions
 
     Parameters
@@ -32,9 +32,7 @@ def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat=None):
     for ti in range(int(emissions.shape[0]/freq_months)):
         for bi in range(4):
             emissions[ti*freq_months:(ti+1)*freq_months, bi] += x_hat[4*ti + bi]
-
-            # If p_hat isn't passed, just leave uncertainty as zero
-            if P_hat != None:
+            if calculate_uncertainty == True:
                 emissions_sd[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(P_hat[4*ti + bi, 4*ti + bi])
 
     return emissions, emissions_sd
@@ -415,13 +413,14 @@ class Inverse_method:
                 observed=self.mat.y,
             )
     
-        trace = pm.sample(20000, tune=10000, chains=2, step=pm.Metropolis())
+            trace = pm.sample(20000, tune=10000, chains=2, step=pm.Metropolis(),
+                            return_inferencedata=True, progressbar=False)
 
-        self.mat.x_trace = trace["x"]
+        self.mat.x_trace = trace.posterior.sel(chain=0).x.data
 
         # Store x and P to make posterior processing simpler (but don't use this for posterior ensemble)
-        self.mat.x_hat = trace["x"].mean(axis=1)
-        self.mat.P_hat = trace["x"].T @ trace["x"]
+        self.mat.x_hat = trace.posterior.sel(chain=0).x.mean(dim="draw").data
+        self.mat.P_hat = trace.posterior.sel(chain=0).x.data.T @ trace.posterior.sel(chain=0).x.data
     
 
     def mcmc_analytical_posterior(self):
@@ -432,6 +431,7 @@ class Inverse_method:
 
 
     def mcmc_analytical_posterior_ensemble(self,
+                                            n_sample=1000, # This isn't needed... just putting it here for now otherwise an error is thrown later
                                             scale_error=0.,
                                             lifetime_error=0.,
                                             transport_error=0.01):
@@ -454,11 +454,13 @@ class Inverse_method:
             mf_sample, _ = posterior_mf(self.mod_prior.mf,
                                         self.sensitivity.sensitivity,
                                         x_sample,
+                                        self.mat.P_hat,
                                         calc_uncertainty=False)
             
             emissions_sample, _ = posterior_emissions(self.mod_prior.emissions,
                                                     self.sensitivity.freq_months,
-                                                    x_sample)
+                                                    x_sample,
+                                                    self.mat.P_hat, calculate_uncertainty=False)
 
             # Scale uncertainty
             mf_sample *= (1. + np.random.normal() * scale_error)
