@@ -1,18 +1,19 @@
 import numpy as np
 from scipy.optimize import minimize
+import pymc3 as pm
 
 from py12box_invert.utils import Store_model
 
 
-def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat):
-    """Calculate linear adjustment to mole fraction
+def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat=None):
+    """Calculate linear adjustment to emissions
 
     Parameters
     ----------
-    freq_moths : int
-        Number of months in each emissions aggregation period (e.g. monthly, seasonal, annual)
     emissions_prior : ndarray
         A priori emissions estimate
+    freq_moths : int
+        Number of months in each emissions aggregation period (e.g. monthly, seasonal, annual)
     x_hat : ndarray
         Posterior emissions adjustment (Gg/yr)
     P_hat : ndarray
@@ -31,7 +32,10 @@ def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat):
     for ti in range(int(emissions.shape[0]/freq_months)):
         for bi in range(4):
             emissions[ti*freq_months:(ti+1)*freq_months, bi] += x_hat[4*ti + bi]
-            emissions_sd[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(P_hat[4*ti + bi, 4*ti + bi])
+
+            # If p_hat isn't passed, just leave uncertainty as zero
+            if P_hat != None:
+                emissions_sd[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(P_hat[4*ti + bi, 4*ti + bi])
 
     return emissions, emissions_sd
 
@@ -398,3 +402,75 @@ class Inverse_method:
         """
 
         return self.analytical_gaussian_posterior_ensemble(**kwargs)
+
+
+    def mcmc_analytical(self):
+
+        with pm.Model() as model:
+            x = pm.MvNormal("x", mu=self.mat.x_a, tau=self.mat.P_inv, shape=(self.mat.x_a.shape[0]))
+            y_observed = pm.MvNormal(
+                "y",
+                mu=self.mat.H @ x,
+                cov=self.mat.R,
+                observed=self.mat.y,
+            )
+    
+        trace = pm.sample(20000, tune=10000, chains=2, step=pm.Metropolis())
+
+        self.mat.x_trace = trace["x"]
+
+        # Store x and P to make posterior processing simpler (but don't use this for posterior ensemble)
+        self.mat.x_hat = trace["x"].mean(axis=1)
+        self.mat.P_hat = trace["x"].T @ trace["x"]
+    
+
+    def mcmc_analytical_posterior(self):
+        """As an approximation, use same as analytical Gaussian
+        """
+
+        self.analytical_gaussian_posterior()
+
+
+    def mcmc_analytical_posterior_ensemble(self,
+                                            scale_error=0.,
+                                            lifetime_error=0.,
+                                            transport_error=0.01):
+
+        n_sample = self.mat.x_trace.shape[0]
+
+        emissions_ensemble = np.zeros(self.mod_prior.emissions.shape + (n_sample,))
+
+        emissions_lifetime_uncertainty = calc_lifetime_uncertainty(lifetime_error,
+                                                                self.mod.steady_state_lifetime,
+                                                                self.mod_posterior.burden,
+                                                                self.mod_posterior.emissions)
+
+        emissions_ensemble = []
+        mf_ensemble = []
+
+        for i in range(n_sample):
+            x_sample = self.mat.x_a + self.mat.x_trace[i, :]
+
+            mf_sample, _ = posterior_mf(self.mod_prior.mf,
+                                        self.sensitivity.sensitivity,
+                                        x_sample,
+                                        calc_uncertainty=False)
+            
+            emissions_sample, _ = posterior_emissions(self.mod_prior.emissions,
+                                                    self.sensitivity.freq_months,
+                                                    x_sample)
+
+            # Scale uncertainty
+            mf_sample *= (1. + np.random.normal() * scale_error)
+            emissions_sample *= (1. + np.random.normal() * scale_error)
+
+            # Transport uncertainty
+            emissions_sample *= (1. + np.random.normal() * transport_error)
+
+            # Lifetime uncertainty
+            emissions_sample += np.random.normal() * emissions_lifetime_uncertainty
+
+            emissions_ensemble.append(emissions_sample)
+            mf_ensemble.append(mf_sample)
+
+        return np.dstack(emissions_ensemble), np.dstack(mf_ensemble)
