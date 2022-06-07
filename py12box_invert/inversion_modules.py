@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
-import pymc3 as pm
+import pymc as pm
 
 from py12box_invert.utils import Store_model
 
