@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 import pymc as pm
+import aesara.tensor as at
 
 from py12box_invert.utils import Store_model
 
@@ -413,14 +414,16 @@ class Inverse_method:
                 observed=self.mat.y,
             )
     
-            trace = pm.sample(20000, tune=10000, chains=2, step=pm.Metropolis(),
-                            return_inferencedata=True, progressbar=False)
+            # trace = pm.sample(20000, tune=10000, chains=2, step=pm.Metropolis(),
+            #                 return_inferencedata=True, progressbar=False)
+            trace = pm.sample(500, return_inferencedata=True, tune=500)
 
         self.mat.x_trace = trace.posterior.sel(chain=0).x.data
 
         # Store x and P to make posterior processing simpler (but don't use this for posterior ensemble)
         self.mat.x_hat = trace.posterior.sel(chain=0).x.mean(dim="draw").data
-        self.mat.P_hat = trace.posterior.sel(chain=0).x.data.T @ trace.posterior.sel(chain=0).x.data
+        residual = trace.posterior.sel(chain=0).x.data - self.mat.x_hat
+        self.mat.P_hat = (residual.T @ residual)/self.mat.x_hat.shape[0]
     
 
     def mcmc_analytical_posterior(self):
@@ -476,3 +479,74 @@ class Inverse_method:
             mf_ensemble.append(mf_sample)
 
         return np.dstack(emissions_ensemble), np.dstack(mf_ensemble)
+
+
+    def mcmc_lat_gradient(self):
+
+        def logistic(L, k, x0, x):
+            return L/(1. + np.exp(-k*(x - x0)))
+
+        nyears = int(self.mod_prior.emissions.shape[0]/12)
+        emissions_global = self.mod_prior.emissions.sum(axis=1)
+        emissions_global_annual = emissions_global.reshape((int(emissions_global.shape[0]/12), 12)).mean(axis=1)
+
+        with pm.Model() as model:
+
+            # Logistic function parameters (L is normalisation so that sum from 0 -> 3 is 1)
+            k = pm.Uniform("k", lower=0.1, upper=3.)
+            x0 = pm.Uniform("x0", lower=0., upper=10.)
+            L = 1/(1/(1+np.exp(-k*(0 - x0))) + \
+                    1/(1+np.exp(-k*(1 - x0))) + \
+                    1/(1+np.exp(-k*(2 - x0))) + \
+                    1/(1+np.exp(-k*(3 - x0))))
+
+            x_box0 = pm.Deterministic("x_box0", logistic(L, k, x0, 0))
+            x_box1 = pm.Deterministic("x_box1", logistic(L, k, x0, 1))
+            x_box2 = pm.Deterministic("x_box2", logistic(L, k, x0, 2))
+            x_box3 = pm.Deterministic("x_box3", logistic(L, k, x0, 3))
+
+            x_global_annual = pm.TruncatedNormal("x_global",
+                                mu=np.zeros(nyears),
+                                sigma=emissions_global_annual,
+                                shape=(nyears,),
+                                lower=-1.*emissions_global_annual
+                                )
+
+#            x_global_monthly = at.repeat(x_global_annual, 12) # Don't need this at this stage (H is annual), but we will do later
+
+            x_boxes = at.stack([x_box0*x_global_annual,
+                                x_box1*x_global_annual,
+                                x_box2*x_global_annual,
+                                x_box3*x_global_annual], axis=1)
+
+            x = pm.Deterministic("x", at.flatten(x_boxes))
+
+            y_observed = pm.MvNormal(
+                "y",
+                mu=self.mat.H @ x,
+                cov=self.mat.R,
+                observed=self.mat.y,
+            )
+
+            trace = pm.sample(500, return_inferencedata=True, tune=500)
+            # trace = pm.sample(return_inferencedata=True, step=pm.Metropolis())
+
+        self.mat.x_trace = trace.posterior.sel(chain=0).x.data
+
+        # Store x and P to make posterior processing simpler (but don't use this for posterior ensemble)
+        self.mat.x_hat = trace.posterior.sel(chain=0).x.mean(dim="draw").data
+        residual = trace.posterior.sel(chain=0).x.data - self.mat.x_hat
+        self.mat.P_hat = (residual.T @ residual)/self.mat.x_hat.shape[0]
+
+    def mcmc_lat_gradient_posterior(self):
+        """As an approximation, use same as analytical Gaussian
+        """
+
+        self.analytical_gaussian_posterior()
+    
+    def mcmc_lat_gradient_posterior_ensemble(self, **kwargs):
+        """
+        The same as a standard analytical Gaussian
+        """
+
+        return self.mcmc_analytical_posterior_ensemble(**kwargs)
