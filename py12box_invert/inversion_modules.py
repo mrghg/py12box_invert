@@ -486,6 +486,7 @@ class Inverse_method:
         def logistic(L, k, x0, x):
             return L/(1. + np.exp(-k*(x - x0)))
 
+        #TODO: hard-wiring annual global emissions at the moment. Need to fix.
         nyears = int(self.mod_prior.emissions.shape[0]/12)
         emissions_global = self.mod_prior.emissions.sum(axis=1)
         emissions_global_annual = emissions_global.reshape((int(emissions_global.shape[0]/12), 12)).mean(axis=1)
@@ -500,10 +501,11 @@ class Inverse_method:
                     1/(1+np.exp(-k*(2 - x0))) + \
                     1/(1+np.exp(-k*(3 - x0))))
 
-            x_box0 = pm.Deterministic("x_box0", logistic(L, k, x0, 0))
-            x_box1 = pm.Deterministic("x_box1", logistic(L, k, x0, 1))
-            x_box2 = pm.Deterministic("x_box2", logistic(L, k, x0, 2))
-            x_box3 = pm.Deterministic("x_box3", logistic(L, k, x0, 3))
+            # Get scaling factor for each box (note that these are intentionally ordered 3 -> 0, because box0 is the biggest)
+            x_box3 = pm.Deterministic("x_box3", logistic(L, k, x0, 0))
+            x_box2 = pm.Deterministic("x_box2", logistic(L, k, x0, 1))
+            x_box1 = pm.Deterministic("x_box1", logistic(L, k, x0, 2))
+            x_box0 = pm.Deterministic("x_box0", logistic(L, k, x0, 3))
 
             x_global_annual = pm.TruncatedNormal("x_global",
                                 mu=np.zeros(nyears),
