@@ -391,9 +391,9 @@ class Invert(Inverse_method):
                     self.sensitivity.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out[thread]*4] = \
                         results[thread].get()
 
-            if from_zero:
-                nobs = self.sensitivity.sensitivity.shape[0]
-                self.sensitivity.sensitivity = np.concatenate([np.ones((nobs,1)),
+        if from_zero:
+            nobs = self.sensitivity.sensitivity.shape[0]
+            self.sensitivity.sensitivity = np.concatenate([np.ones((nobs,1)),
                                                                 self.sensitivity.sensitivity], axis=1)
 
         print("... done")
