@@ -178,7 +178,8 @@ class Invert(Inverse_method):
                             scale_error=0.,
                             lifetime_error=0.,
                             transport_error=0.01,
-                            output_uncertainty="1-sigma"):
+                            output_uncertainty="1-sigma",
+                            sensitivity_from_zero=False):
         """Run inversion and process outputs
 
         Parameters
@@ -198,7 +199,7 @@ class Invert(Inverse_method):
         """
         
         # Set up matrices
-        self.create_matrices(sigma_P=prior_flux_uncertainty)
+        self.create_matrices(sigma_P=prior_flux_uncertainty, from_zero=sensitivity_from_zero)
 
         print("Run inversion...")
         self.inversion()
@@ -399,7 +400,7 @@ class Invert(Inverse_method):
         print("... done")
 
 
-    def create_matrices(self, sigma_P=None):
+    def create_matrices(self, sigma_P=None, from_zero=False):
         """Set up matrices for inversion
 
         Parameters
@@ -437,10 +438,29 @@ class Invert(Inverse_method):
         if sum(P_diag == 0) > 0:
             raise Exception("P_sigma contains zeros")
 
-        self.mat.P_inv = np.linalg.inv(np.diag(P_diag**2))
+        if from_zero:
+            #TODO: These values probably don't make any physical sense yet. Need to improve this
+            # Store 1/prior uncertainty covariance
+            # IC uncertainty is 1/10th of the ic value
+            self.mat.P_inv = np.linalg.inv(np.diag(np.concatenate([self.mod_prior.ic[0:1]/10.,
+                                                                    P_diag])**2))
     
-        # Prior parameters vector
-        self.mat.x_a = np.zeros(nx)
+            # Prior parameters vector
+            self.mat.x_a = np.zeros(nx)
+            self.mat.x_a[0] = self.mod_prior.ic[0]
+        
+        else:
+            # Store 1/prior uncertainty covariance
+            self.mat.P_inv = np.linalg.inv(np.diag(P_diag**2))
+    
+            # Prior parameters vector
+            self.mat.x_a = np.zeros(nx)
+
+        if self.mat.P_inv.shape[0] != self.mat.x_a.shape[0]:
+            raise Exception("Prior and prior uncertainty are different sizes")
+
+        if self.mat.H.shape[1] != self.mat.x_a.shape[0]:
+            raise Exception("Prior and sensitivity are different sizes")
 
 
     def process_outputs(self, n_sample=1000,
