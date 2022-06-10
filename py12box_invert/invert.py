@@ -37,7 +37,8 @@ class Invert(Inverse_method):
                         sensitivity_freq = "yearly",
                         spinup_years = 9,
                         ic_years = 3,
-                        n_threads = 12):
+                        n_threads = 12,
+                        sensitivity_from_zero = False):
         """Set up 12-box model inversion class
 
         Parameters
@@ -113,8 +114,7 @@ class Invert(Inverse_method):
 
         # Align model and obs, and change start/end dates, if needed
         if ic_years and start_year:
-            #raise Exception("Can't have both a start_year and ic_year")
-            warnings.warn("Can't have both a start_year and ic_year\n Setting ic_years to None.")
+            warnings.warn("Can't have both a start_year and ic_years\n Setting ic_years to None.")
             ic_years = None
 
         # If initial condition years have been set, move start year back
@@ -149,18 +149,27 @@ class Invert(Inverse_method):
 
         # Calculate sensitivity
         self.run_sensitivity(freq=sensitivity_freq,
-                                nthreads=n_threads)
+                                nthreads=n_threads,
+                                from_zero=sensitivity_from_zero)
 
-        # To spin up and estimate initial conditions, iterate between the two a few times
-        print(f"Spinning up for {spinup_years} years and estimating initial conditions...")
-        for i in range(3):
-            # Spinup, if needed
-            if spinup_years > 0:
-                self.run_spinup(nyears=int(spinup_years/3))
+        
+        if sensitivity_from_zero:
+            # Set all initial conditions to a constant value. This value will be used as the prior IC later
+            print("Setting initial conditions to constant value")
+            self.run_initial_conditions(from_zero=True)
 
-            # Calculate initial conditions.
-            # This needs to happen after the sensitivity calculation
-            self.run_initial_conditions()
+        else:
+            # To spin up and estimate initial conditions, iterate between the two a few times
+            print(f"Spinning up for {spinup_years} years and estimating initial conditions...")
+            for i in range(3):
+                # Spinup, if needed
+                if spinup_years > 0:
+                    self.run_spinup(nyears=int(spinup_years/3))
+
+                # Calculate initial conditions.
+                # This needs to happen after the sensitivity calculation
+                self.run_initial_conditions()
+
         print("... done")
 
 
@@ -230,7 +239,7 @@ class Invert(Inverse_method):
         self.mod_prior = Store_model(self.mod)
 
 
-    def run_initial_conditions(self):
+    def run_initial_conditions(self, from_zero=False):
         """Estimate initial conditions from prior fluxes
 
         Use the prior fluxes and the model to predict the initial condition
@@ -250,7 +259,10 @@ class Invert(Inverse_method):
         x_a = x_a.flatten()
 
         # Work out the mole fractions due to these emissions
-        mf_prior = (self.sensitivity.sensitivity @ x_a).reshape(self.obs.mf.shape)
+        if from_zero:
+            mf_prior = (self.sensitivity.sensitivity[:, 1:] @ x_a).reshape(self.obs.mf.shape)
+        else:
+            mf_prior = (self.sensitivity.sensitivity @ x_a).reshape(self.obs.mf.shape)
 
         # If we go back in time, work out how far mf should have been from first obs
         # according to the prior emissions
@@ -260,11 +272,18 @@ class Invert(Inverse_method):
         ic_offset = np.mean(self.obs.mf[first_obs_ti, first_obs_bi] - \
                 self.mod.ic[first_obs_bi])
 
-        # Adjust initial conditions to reflect these offsets
-        self.mod.ic += ic_offset - mf_offset
+        if from_zero:
+            # set all initial conditions to the same value, equal to surface mean
+            self.mod.ic += ic_offset - mf_offset
+            self.mod.ic[:] = np.mean(self.mod.ic[0:3])
 
-        # If any values are below zero, reset
-        self.mod.ic[self.mod.ic < 1e-12] = 1e-12
+        else:
+        
+            # Adjust initial conditions to reflect these offsets
+            self.mod.ic += ic_offset - mf_offset
+
+            # If any values are below zero, reset
+            self.mod.ic[self.mod.ic < 1e-12] = 1e-12
 
         # re-run model from these initial conditions
         self.mod.run(verbose=False)
@@ -299,7 +318,10 @@ class Invert(Inverse_method):
         self.obs.change_end_year(end_year)
         #TODO: Add sensitivity?
 
-    def run_sensitivity(self, freq="yearly", nthreads=12):
+    def run_sensitivity(self,
+                        freq="yearly",
+                        nthreads=12,
+                        from_zero=False):
         """
         Derive linear yearly flux sensitivities
         
@@ -368,6 +390,11 @@ class Invert(Inverse_method):
                 if nsens_out[thread] > 0:
                     self.sensitivity.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out[thread]*4] = \
                         results[thread].get()
+
+            if from_zero:
+                nobs = self.sensitivity.sensitivity.shape[0]
+                self.sensitivity.sensitivity = np.concatenate([np.ones((nobs,1)),
+                                                                self.sensitivity.sensitivity], axis=1)
 
         print("... done")
 
