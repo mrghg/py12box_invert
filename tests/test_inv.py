@@ -1,5 +1,7 @@
 from py12box_invert.paths import Paths
 from py12box_invert.invert import Invert, Store_model
+from py12box.core import model
+
 import numpy as np
 
 
@@ -66,6 +68,38 @@ def test_sensitivity():
     assert np.allclose(sens_yr_boxed, sens_qu_boxed_averaged)
     assert np.allclose(sens_yr_boxed, sens_mo_boxed_averaged)
 
+
+def test_sensitivity_from_zero():
+
+    inv.mod.run()
+    inv.mod_prior = Store_model(inv.mod)
+
+    inv.run_sensitivity(freq="yearly", from_zero=True)
+
+    # Check there are the right number of sensitivity elements (i.e. nyears + 1ic)
+    assert inv.sensitivity.sensitivity.shape[1] == (int(inv.mod.emissions.shape[0]/12*4) + 1)
+
+    # Some arbitrary model run from uniform IC
+    mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = model(
+                    np.ones(12)*200.,
+                    np.ones((120, 4))*100.,
+                    inv.mod.mol_mass,
+                    inv.mod.lifetime,
+                    inv.mod.F,
+                    inv.mod.temperature,
+                    inv.mod.oh,
+                    inv.mod.cl,
+                    arr_oh=np.array([inv.mod.oh_a, inv.mod.oh_er]),
+                    mass=inv.mod.mass)
+
+    # Calculate the same model run using sensitivity matrix
+    x_test = np.zeros(inv.sensitivity.sensitivity.shape[1])
+    x_test[0]=200.
+    x_test[1:] = 100.
+    mf_test = (inv.sensitivity.sensitivity @ x_test).reshape((120, 4))
+
+    # Test if the two are the same
+    assert np.allclose(mf_test, mf_out[:,:4])
 
 def test_matrices():
 
