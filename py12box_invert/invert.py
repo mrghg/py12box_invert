@@ -393,9 +393,18 @@ class Invert(Inverse_method):
                         results[thread].get()
 
         if from_zero:
-            nobs = self.sensitivity.sensitivity.shape[0]
-            self.sensitivity.sensitivity = np.concatenate([np.ones((nobs,1)),
-                                                                self.sensitivity.sensitivity], axis=1)
+
+            # Run model from 1ppt above initial value
+            mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
+                    core.model(self.mod_prior.ic+10., self.mod_prior.emissions, self.mod.mol_mass, self.mod.lifetime,
+                                self.mod.F, self.mod.temperature, self.mod.oh, self.mod.cl,
+                                arr_oh=np.array([self.mod.oh_a, self.mod.oh_er]),
+                                mass=self.mod.mass)
+
+            ic_sensitivity = (mf_out[:,:4].flatten() - self.mod_prior.mf[:,:4].flatten()) / 10.
+
+            self.sensitivity.sensitivity = np.concatenate([np.expand_dims(ic_sensitivity, axis=1),
+                                            self.sensitivity.sensitivity], axis=1)
 
         print("... done")
 
