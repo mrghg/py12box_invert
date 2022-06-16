@@ -575,6 +575,7 @@ class Inverse_method:
 
         # Rerun forward model with optimized emissions
         self.mod.emissions = emissions.copy()
+        self.mod.ic[:] = self.mat.x_hat[0]
         self.mod.run(verbose=False)
 
         # Check that mole fraction agrees with sensitivity*emissions
