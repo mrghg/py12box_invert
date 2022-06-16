@@ -424,7 +424,11 @@ class Invert(Inverse_method):
         self.mat.H = self.sensitivity.sensitivity[self.mat.wh_obs,:]
 
         # Flatten model outputs, noting that all 12 boxes are output (compared to 4 for obs)
-        self.mat.y = self.obs.mf[:, :4].flatten()[self.mat.wh_obs] - self.mod_prior.mf[:, :4].flatten()[self.mat.wh_obs]
+        if from_zero:
+            self.mat.y = self.obs.mf[:, :4].flatten()[self.mat.wh_obs]
+        else:
+            # Subtract reference run
+            self.mat.y = self.obs.mf[:, :4].flatten()[self.mat.wh_obs] - self.mod_prior.mf[:, :4].flatten()[self.mat.wh_obs]
 
         #TODO: Functions to choose obs uncertainty estimation method
         self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[self.mat.wh_obs]**2)

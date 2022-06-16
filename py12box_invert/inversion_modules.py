@@ -6,7 +6,8 @@ import aesara.tensor as at
 from py12box_invert.utils import Store_model
 
 
-def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat, calculate_uncertainty=True):
+def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat,
+                    calculate_uncertainty=True, from_zero=False):
     """Calculate linear adjustment to emissions
 
     Parameters
@@ -32,7 +33,12 @@ def posterior_emissions(emissions_prior, freq_months, x_hat, P_hat, calculate_un
     emissions_sd = np.zeros_like(emissions)
     for ti in range(int(emissions.shape[0]/freq_months)):
         for bi in range(4):
-            emissions[ti*freq_months:(ti+1)*freq_months, bi] += x_hat[4*ti + bi]
+            if from_zero:
+                # x is emissions
+                emissions[ti*freq_months:(ti+1)*freq_months, bi] = x_hat[4*ti + bi]
+            else:
+                # x is deviation from prior
+                emissions[ti*freq_months:(ti+1)*freq_months, bi] += x_hat[4*ti + bi]
             if calculate_uncertainty == True:
                 emissions_sd[ti*freq_months:(ti+1)*freq_months, bi] = np.sqrt(P_hat[4*ti + bi, 4*ti + bi])
 
@@ -174,26 +180,34 @@ class Inverse_method:
         self.mat.P_hat = np.linalg.inv(self.mat.H.T @ R_inv @ self.mat.H + self.mat.P_inv)
     
     
-    def analytical_gaussian_posterior(self):
+    def analytical_gaussian_posterior(self, from_zero=False):
         """Method to process posterior mole fractions and emissions
         """
 
         # Posterior emissions
-        #self.mod_posterior.emissions, self.mod_posterior.emissions_sd = posterior_emissions(self.mod_prior.emissions,
+        if from_zero:
+            x_emissions = self.mat.x_hat[1:]
+            P_emissions = self.mat.P_hat[1:,1:]
+        else:
+            x_emissions = self.mat.x_hat
+            P_emissions = self.mat.P_hat
+        
         emissions, emissions_sd = posterior_emissions(self.mod_prior.emissions,
                                                         self.sensitivity.freq_months,
-                                                        self.mat.x_hat,
-                                                        self.mat.P_hat)
+                                                        x_emissions,
+                                                        P_emissions,
+                                                        from_zero=from_zero)
 
         # Posterior mole fraction
-        #self.mod_posterior.mf, self.mod_posterior.mf_sd = posterior_mf(self.mod_prior.mf,
         mf, mf_sd = posterior_mf(self.mod_prior.mf,
                                     self.sensitivity.sensitivity,
                                     self.mat.x_hat,
-                                    self.mat.P_hat)
+                                    self.mat.P_hat, from_zero=from_zero)
 
         # Rerun forward model with optimized emissions
         self.mod.emissions = emissions.copy()
+        if from_zero:
+            self.mod.ic[:] = self.mat.x_hat[0]
         self.mod.run(verbose=False)
 
         # Check that mole fraction agrees with sensitivity*emissions
@@ -543,9 +557,13 @@ class Inverse_method:
                 observed=self.mat.y,
             )
 
+            prior = pm.sample_prior_predictive(samples=10, model=model)
+
             #trace = pm.sample(500, return_inferencedata=True, tune=500)
-            #trace = pm.find_MAP()
             trace = pm.sample(return_inferencedata=True, step=pm.Metropolis())
+
+        self.mat.trace = trace.copy()
+        self.mat.prior = prior.copy()
 
         self.mat.x_trace = trace.posterior.sel(chain=0).x.data
 
@@ -556,39 +574,9 @@ class Inverse_method:
 
 
     def mcmc_lat_gradient_posterior(self):
-        """Method to process posterior mole fractions and emissions
-        """
+        self.analytical_gaussian_posterior(from_zero=True)
 
-        # Posterior emissions
-        #self.mod_posterior.emissions, self.mod_posterior.emissions_sd = posterior_emissions(self.mod_prior.emissions,
-        emissions, emissions_sd = posterior_emissions(self.mod_prior.emissions,
-                                                        self.sensitivity.freq_months,
-                                                        self.mat.x_hat[1:],
-                                                        self.mat.P_hat[1:,1:])
 
-        # Posterior mole fraction
-        #self.mod_posterior.mf, self.mod_posterior.mf_sd = posterior_mf(self.mod_prior.mf,
-        mf, mf_sd = posterior_mf(self.mod_prior.mf,
-                                    self.sensitivity.sensitivity,
-                                    self.mat.x_hat,
-                                    self.mat.P_hat, from_zero=True)
-
-        # Rerun forward model with optimized emissions
-        self.mod.emissions = emissions.copy()
-        self.mod.ic[:] = self.mat.x_hat[0]
-        self.mod.run(verbose=False)
-
-        # Check that mole fraction agrees with sensitivity*emissions
-        if not np.allclose(self.mod.mf[:, :4], mf, rtol=0.001):
-            raise Exception("Optimized model run doesn't match linear prediction")
-
-        # Store posterior model
-        self.mod_posterior = Store_model(self.mod)
-
-        # Add in analytical uncertainties
-        self.mod_posterior.emissions_sd = emissions_sd
-        self.mod_posterior.mf_sd = mf_sd
-    
     def mcmc_lat_gradient_posterior_ensemble(self, **kwargs):
         """
         The same as a standard analytical Gaussian
