@@ -455,7 +455,8 @@ class Inverse_method:
                                             n_sample=1000, # This isn't needed... just putting it here for now otherwise an error is thrown later
                                             scale_error=0.,
                                             lifetime_error=0.,
-                                            transport_error=0.01):
+                                            transport_error=0.01,
+                                            from_zero=False):
 
         n_sample = self.mat.x_trace.shape[0]
 
@@ -476,12 +477,15 @@ class Inverse_method:
                                         self.sensitivity.sensitivity,
                                         x_sample,
                                         self.mat.P_hat,
-                                        calc_uncertainty=False)
+                                        calc_uncertainty=False,
+                                        from_zero=from_zero)
             
             emissions_sample, _ = posterior_emissions(self.mod_prior.emissions,
                                                     self.sensitivity.freq_months,
                                                     x_sample,
-                                                    self.mat.P_hat, calculate_uncertainty=False)
+                                                    self.mat.P_hat,
+                                                    calculate_uncertainty=False,
+                                                    from_zero=from_zero)
 
             # Scale uncertainty
             mf_sample *= (1. + np.random.normal() * scale_error)
@@ -559,7 +563,7 @@ class Inverse_method:
 
             prior = pm.sample_prior_predictive(samples=10, model=model)
 
-            #trace = pm.sample(500, return_inferencedata=True, tune=500)
+            #trace = pm.sample(return_inferencedata=True)
             trace = pm.sample(return_inferencedata=True, step=pm.Metropolis())
 
         self.mat.trace = trace.copy()
@@ -582,4 +586,4 @@ class Inverse_method:
         The same as a standard analytical Gaussian
         """
 
-        return self.mcmc_analytical_posterior_ensemble(**kwargs)
+        return self.mcmc_analytical_posterior_ensemble(**kwargs, from_zero=True)
