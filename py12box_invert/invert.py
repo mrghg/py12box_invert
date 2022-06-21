@@ -152,7 +152,6 @@ class Invert(Inverse_method):
                                 nthreads=n_threads,
                                 from_zero=sensitivity_from_zero)
 
-        
         if sensitivity_from_zero:
             # Set all initial conditions to a constant value. This value will be used as the prior IC later
             print("Setting initial conditions to constant value")

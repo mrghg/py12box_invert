@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 import pymc as pm
 import aesara.tensor as at
+from patsy import dmatrix
 
 from py12box_invert.utils import Store_model
 
@@ -503,17 +504,47 @@ class Inverse_method:
         return np.dstack(emissions_ensemble), np.dstack(mf_ensemble)
 
 
-    def mcmc_lat_gradient(self):
+    def mcmc_lat_gradient(self, global_method="spline"):
         '''Must be run with sensitivity_from_zero
         '''
 
         def logistic(L, k, x0, x):
+            '''Define Logistic function for latitudinal gradient'''
             return L/(1. + np.exp(-k*(x - x0)))
 
-        #TODO: hard-wiring annual global emissions at the moment. Need to fix.
+        if self.sensitivity.freq_months != 1:
+            raise Exception("Must provide monthly sensitivity")
+
         nyears = int(self.mod_prior.emissions.shape[0]/12)
-        emissions_global = self.mod_prior.emissions.sum(axis=1)
-        emissions_global_annual = emissions_global.reshape((int(emissions_global.shape[0]/12), 12)).mean(axis=1)
+        
+        if global_method == "annual":
+
+            emissions_global = self.mod_prior.emissions.sum(axis=1)
+            emissions_global_annual = emissions_global.reshape((int(emissions_global.shape[0]/12), 12)).mean(axis=1)
+
+        elif global_method == "spline":
+
+            if nyears < 10:
+                raise Exception("Currently, recommend at least 10 years for spinup")
+
+            spinup = 10 # years
+            num_knots = int((nyears-spinup)/2)
+
+            finite_times = np.isfinite(self.obs.mf) * \
+                    np.repeat(np.expand_dims(self.mod_prior.time, axis=1), 4, axis=1)
+
+            # distribute knots over period after spinup, weighted by data density
+            knots_list = np.quantile(finite_times[(finite_times > 0.) * \
+                    (finite_times > self.obs.time[0] + spinup)], np.linspace(0, 1, num_knots))
+
+            # prepend start year
+            knots_list = np.insert(knots_list, 0, self.obs.time[0])
+
+            # B-spline design matrix
+            B = np.asarray(dmatrix(
+                    "bs(time, knots=knots, degree=3, include_intercept=True) - 1",
+                    {"time": self.mod_prior.time, "knots": knots_list[1:-1]},
+                    ))
 
         with pm.Model() as model:
 
@@ -531,19 +562,36 @@ class Inverse_method:
             x_box1 = pm.Deterministic("x_box1", logistic(L, k, x0, 2))
             x_box0 = pm.Deterministic("x_box0", logistic(L, k, x0, 3))
 
-            x_global_annual = pm.TruncatedNormal("x_global",
-                                mu=emissions_global_annual,
-                                sigma=emissions_global_annual,
-                                shape=(nyears,),
-                                lower=np.zeros(nyears)
-                                )
+            if global_method == "annual":
 
-#            x_global_monthly = at.repeat(x_global_annual, 12) # Don't need this at this stage (H is annual), but we will do later
+                x_global_annual = pm.TruncatedNormal("x_global",
+                                                    mu=emissions_global_annual,
+                                                    sigma=emissions_global_annual,
+                                                    shape=(nyears,),
+                                                    lower=np.zeros(nyears)
+                                                    )
 
-            x_boxes = at.stack([x_box0*x_global_annual,
-                                x_box1*x_global_annual,
-                                x_box2*x_global_annual,
-                                x_box3*x_global_annual], axis=1)
+                x_global_monthly = at.repeat(x_global_annual, 12)
+
+            elif global_method == "spline":
+
+                # Spline weights
+                x_knots = pm.TruncatedNormal("x_knots",
+                                            mu=1, sigma=1, lower=0, 
+                                            shape = B.shape[1],
+                                            )
+
+                # Single global scaling factor
+                x_global = pm.TruncatedNormal("x_global", mu=100., sigma=100., lower=0.)
+
+                x_global_monthly = pm.Deterministic("x_global_monthly", x_global * \
+                                                    pm.math.dot(B, x_knots))
+
+
+            x_boxes = at.stack([x_box0*x_global_monthly,
+                                x_box1*x_global_monthly,
+                                x_box2*x_global_monthly,
+                                x_box3*x_global_monthly], axis=1)
 
             x_emissions = pm.Deterministic("x_emissions", at.flatten(x_boxes))
 
@@ -561,13 +609,15 @@ class Inverse_method:
                 observed=self.mat.y,
             )
 
-            prior = pm.sample_prior_predictive(samples=10, model=model)
+            #prior = pm.sample_prior_predictive(samples=10, model=model)
 
             #trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(return_inferencedata=True, step=pm.Metropolis())
+            trace = pm.sample(draws=1000, tune=500, 
+                            return_inferencedata=True,
+                            step=pm.Metropolis())
 
         self.mat.trace = trace.copy()
-        self.mat.prior = prior.copy()
+        #self.mat.prior = prior.copy()
 
         self.mat.x_trace = trace.posterior.sel(chain=0).x.data
 
