@@ -1,3 +1,4 @@
+from bisect import bisect_right
 import numpy as np
 from scipy.optimize import minimize
 import pymc as pm
@@ -516,7 +517,15 @@ class Inverse_method:
             raise Exception("Must provide monthly sensitivity")
 
         nyears = int(self.mod_prior.emissions.shape[0]/12)
-        
+
+        # number of time periods to split latitude gradient into
+        # Factor of 12 so that we don't have any remainders
+        lat_grad_years = [10, 20, 30, 40, 60, 1000]
+        lat_grad_sections = [1,  2,  3,  4,  6,  6]
+        # lat_grad_sections = [6,  12,  24,  36,  48,  48]
+
+        lat_grad_n = lat_grad_sections[bisect_right(lat_grad_years, nyears)]
+
         if global_method == "annual":
 
             emissions_global = self.mod_prior.emissions.sum(axis=1)
@@ -549,8 +558,8 @@ class Inverse_method:
         with pm.Model() as model:
 
             # Logistic function parameters (L is normalisation so that sum from 0 -> 3 is 1)
-            k = pm.Uniform("k", lower=0.1, upper=3.)
-            x0 = pm.Uniform("x0", lower=0., upper=10.)
+            k = pm.Uniform("k", lower=0.1, upper=3., shape=(lat_grad_n))
+            x0 = pm.Uniform("x0", lower=0., upper=10., shape=(lat_grad_n))
             L = 1/(1/(1+np.exp(-k*(0 - x0))) + \
                     1/(1+np.exp(-k*(1 - x0))) + \
                     1/(1+np.exp(-k*(2 - x0))) + \
@@ -587,11 +596,10 @@ class Inverse_method:
                 x_global_monthly = pm.Deterministic("x_global_monthly", x_global * \
                                                     pm.math.dot(B, x_knots))
 
-
-            x_boxes = at.stack([x_box0*x_global_monthly,
-                                x_box1*x_global_monthly,
-                                x_box2*x_global_monthly,
-                                x_box3*x_global_monthly], axis=1)
+            x_boxes = at.stack([at.repeat(x_box0, nyears*12/lat_grad_n) * x_global_monthly,
+                                at.repeat(x_box1, nyears*12/lat_grad_n) * x_global_monthly,
+                                at.repeat(x_box2, nyears*12/lat_grad_n) * x_global_monthly,
+                                at.repeat(x_box3, nyears*12/lat_grad_n) * x_global_monthly], axis=1)
 
             x_emissions = pm.Deterministic("x_emissions", at.flatten(x_boxes))
 
@@ -602,17 +610,17 @@ class Inverse_method:
 
             x = pm.Deterministic("x", at.concatenate([x_ic, x_emissions]))
 
-            y_observed = pm.MvNormal(
+            y_observed = pm.Normal(
                 "y",
                 mu=self.mat.H @ x,
-                cov=self.mat.R,
+                sigma=np.sqrt(np.diag(self.mat.R)),
                 observed=self.mat.y,
             )
 
             #prior = pm.sample_prior_predictive(samples=10, model=model)
 
             #trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(draws=1000, tune=500, 
+            trace = pm.sample(draws=5000, tune=1000, 
                             return_inferencedata=True,
                             step=pm.Metropolis())
 
