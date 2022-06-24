@@ -620,7 +620,7 @@ class Inverse_method:
             #prior = pm.sample_prior_predictive(samples=10, model=model)
 
             #trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(draws=5000, tune=1000, 
+            trace = pm.sample(draws=2000, tune=5000, 
                             return_inferencedata=True,
                             step=pm.Metropolis())
 

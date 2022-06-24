@@ -21,6 +21,7 @@ def test_read():
     assert cfc11.mf.shape == (nlines, 4)
     assert cfc11.mf_uncertainty.shape == (nlines, 4)
     assert cfc11.mf[0 , 0] == 158.39
+    assert cfc11.mf_site_instrument[0, 0] == "MHD-ALE|"
 
 
 def test_change_start_year():

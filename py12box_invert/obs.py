@@ -1,5 +1,7 @@
 import pandas as pd
 from bisect import bisect
+from numpy import chararray
+
 from numpy import arange, hstack, vstack, zeros, nan
 
 from py12box_invert.utils import decimal_date, round_date
@@ -56,7 +58,9 @@ class Obs:
                     self.units = "ppt" 
 
         df = pd.read_csv(obs_file,
-                        comment="#", header=[0, 1], index_col=[0],skipinitialspace=True)
+                        comment="#", header=[0, 1], index_col=[0],
+                        skipinitialspace=True,
+                        na_values="nan")
 
         # Convert to decimal date and round to nearest 1/12 month
         self.time = round_date(decimal_date(pd.DatetimeIndex(df.index)))
@@ -65,6 +69,17 @@ class Obs:
         self.mf = df.xs("mf", level="var", axis=1).values*mf_scale
         self.mf_uncertainty = df.xs("mf_variability", level="var", axis=1).values*mf_scale
 
+        if ("sites" in df.columns) and ("instruments" in df.columns):
+            self.mf_site_instrument = (df.xs("sites", level="var", axis=1) + "-" + \
+                df.xs("instruments", level="var", axis=1)).values
+        elif ("sites" in df.columns):
+            self.mf_site_instrument = df.xs("sites", level="var", axis=1).values
+        elif ("instruments" in df.columns):
+            self.mf_site_instrument = df.xs("instruments", level="var", axis=1).values
+        else:
+            self.mf_site_instrument = chararray(self.mf.shape)
+            self.mf_site_instrument[:] = ""
+        
 
     def change_start_year(self, start_year):
         """Change the start year of the obs class
