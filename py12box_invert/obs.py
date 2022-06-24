@@ -2,7 +2,7 @@ import pandas as pd
 from bisect import bisect
 from numpy import chararray
 
-from numpy import arange, hstack, vstack, zeros, nan
+from numpy import arange, hstack, vstack, zeros, nan, chararray
 
 from py12box_invert.utils import decimal_date, round_date
 
@@ -98,14 +98,18 @@ class Obs:
             self.time = self.time[ti:]
             self.mf = self.mf[ti:,:]
             self.mf_uncertainty = self.mf_uncertainty[ti:,:]
+            self.mf_site_instrument = self.mf_site_instrument[ti:,:]
 
         elif float(start_year) < self.time[0]:
             # Pad with nans
             new_time = arange(start_year, self.time[0]-1e-8, step=1/12) # minus 1e-8 else numerical problem  
             self.time = hstack([new_time, self.time])
             nanarray = zeros((len(new_time), 4))*nan
+            nanchararray = chararray(nanarray.shape)
+            nanchararray[:] = ""
             self.mf = vstack([nanarray, self.mf])
             self.mf_uncertainty = vstack([nanarray, self.mf_uncertainty])
+            self.mf_site_instrument = vstack([nanchararray, self.mf_site_instrument])
 
 
     def change_end_year(self, end_year):
@@ -122,10 +126,14 @@ class Obs:
             self.time = self.time[:ti]
             self.mf = self.mf[:ti, :]
             self.mf_uncertainty = self.mf_uncertainty[:ti, :]
+            self.mf_site_instrument = self.mf_site_instrument[:ti,:]
         elif float(end_year) > self.time[-1]:
             # Pad with nans
             new_time = arange(self.time[-1] + 1/12, end_year-1e-8, step=1/12)
             self.time = hstack([self.time, new_time])
             nanarray = zeros((len(new_time), 4))*nan
+            nanchararray = chararray(nanarray.shape)
+            nanchararray[:] = ""
             self.mf = vstack([self.mf, nanarray])
             self.mf_uncertainty = vstack([self.mf_uncertainty, nanarray])
+            self.mf_site_instrument = vstack([self.mf_site_instrument, nanchararray])
