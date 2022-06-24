@@ -428,6 +428,8 @@ class Invert(Inverse_method):
         else:
             # Subtract reference run
             self.mat.y = self.obs.mf[:, :4].flatten()[self.mat.wh_obs] - self.mod_prior.mf[:, :4].flatten()[self.mat.wh_obs]
+        # Measurement site and instrument
+        self.mat.y_site_instrument = self.obs.mf_site_instrument[:, :4].flatten()[self.mat.wh_obs]
 
         #TODO: Functions to choose obs uncertainty estimation method
         self.mat.R = np.diag(self.obs.mf_uncertainty.flatten()[self.mat.wh_obs]**2)

@@ -610,10 +610,21 @@ class Inverse_method:
 
             x = pm.Deterministic("x", at.concatenate([x_ic, x_emissions]))
 
+            # Different model uncertainty for each site and instrument
+            site_instrument = np.unique(self.mat.y_site_instrument)
+            y_model_error = pm.HalfNormal("y_model_error",
+                                        sigma=np.mean(np.sqrt(np.diag(self.mat.R))),
+                                        shape=len(site_instrument))
+            
+            # @luke, how do I do this in pymc??
+            y_sigma = np.zeros(self.mat.y.shape)
+            for i, si in enumerate(site_instrument):
+                y_sigma[self.mat.y_site_instrument == si] = y_model_error[i]
+
             y_observed = pm.Normal(
                 "y",
                 mu=self.mat.H @ x,
-                sigma=np.sqrt(np.diag(self.mat.R)),
+                sigma=np.sqrt(np.diag(self.mat.R)) + y_sigma,
                 observed=self.mat.y,
             )
 
