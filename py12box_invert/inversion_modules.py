@@ -612,26 +612,28 @@ class Inverse_method:
 
             # Different model uncertainty for each site and instrument
             site_instrument = np.unique(self.mat.y_site_instrument)
-            y_model_error = pm.HalfNormal("y_model_error",
+            model_error = pm.HalfNormal("model_error",
                                         sigma=np.mean(np.sqrt(np.diag(self.mat.R))),
                                         shape=len(site_instrument))
             
-            # @luke, how do I do this in pymc??
-            y_sigma = np.zeros(self.mat.y.shape)
+            y_model_error = at.zeros_like(self.mat.y)
             for i, si in enumerate(site_instrument):
-                y_sigma[self.mat.y_site_instrument == si] = y_model_error[i]
+                indices = np.asarray(self.mat.y_site_instrument == si).nonzero()
+                y_model_error = at.set_subtensor(y_model_error[indices], model_error[i])
+
+            y_sigma = pm.Deterministic("y_sigma", np.sqrt(np.diag(self.mat.R)) + y_model_error)
 
             y_observed = pm.Normal(
                 "y",
                 mu=self.mat.H @ x,
-                sigma=np.sqrt(np.diag(self.mat.R)) + y_sigma,
+                sigma=y_sigma,
                 observed=self.mat.y,
             )
 
             #prior = pm.sample_prior_predictive(samples=10, model=model)
 
             #trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(draws=2000, tune=5000, 
+            trace = pm.sample(draws=2000, tune=500, 
                             return_inferencedata=True,
                             step=pm.Metropolis())
 
