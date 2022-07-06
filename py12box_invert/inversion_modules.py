@@ -557,19 +557,19 @@ class Inverse_method:
 
         with pm.Model() as model:
 
-            # Logistic function parameters (L is normalisation so that sum from 0 -> 3 is 1)
-            k = pm.Uniform("k", lower=0.1, upper=3., shape=(lat_grad_n))
-            x0 = pm.Uniform("x0", lower=0., upper=10., shape=(lat_grad_n))
-            L = 1/(1/(1+np.exp(-k*(0 - x0))) + \
-                    1/(1+np.exp(-k*(1 - x0))) + \
-                    1/(1+np.exp(-k*(2 - x0))) + \
-                    1/(1+np.exp(-k*(3 - x0))))
+            # # Logistic function parameters (L is normalisation so that sum from 0 -> 3 is 1)
+            # k = pm.Uniform("k", lower=0.1, upper=3., shape=(lat_grad_n))
+            # x0 = pm.Uniform("x0", lower=0., upper=10., shape=(lat_grad_n))
+            # L = 1/(1/(1+np.exp(-k*(0 - x0))) + \
+            #         1/(1+np.exp(-k*(1 - x0))) + \
+            #         1/(1+np.exp(-k*(2 - x0))) + \
+            #         1/(1+np.exp(-k*(3 - x0))))
 
-            # Get scaling factor for each box (note that these are intentionally ordered 3 -> 0, because box0 is the biggest)
-            x_box3 = pm.Deterministic("x_box3", logistic(L, k, x0, 0))
-            x_box2 = pm.Deterministic("x_box2", logistic(L, k, x0, 1))
-            x_box1 = pm.Deterministic("x_box1", logistic(L, k, x0, 2))
-            x_box0 = pm.Deterministic("x_box0", logistic(L, k, x0, 3))
+            # # Get scaling factor for each box (note that these are intentionally ordered 3 -> 0, because box0 is the biggest)
+            # x_box3 = pm.Deterministic("x_box3", logistic(L, k, x0, 0))
+            # x_box2 = pm.Deterministic("x_box2", logistic(L, k, x0, 1))
+            # x_box1 = pm.Deterministic("x_box1", logistic(L, k, x0, 2))
+            # x_box0 = pm.Deterministic("x_box0", logistic(L, k, x0, 3))
 
             if global_method == "annual":
 
@@ -585,21 +585,39 @@ class Inverse_method:
             elif global_method == "spline":
 
                 # Spline weights
-                x_knots = pm.TruncatedNormal("x_knots",
+                x_knots3 = pm.TruncatedNormal("x_knots3",
                                             mu=1, sigma=1, lower=0, 
+                                            shape = B.shape[1],
+                                            )
+                x_knots2 = pm.TruncatedNormal("x_knots2",
+                                            mu=1, sigma=1, lower=x_knots3, 
+                                            shape = B.shape[1],
+                                            )
+                x_knots1 = pm.TruncatedNormal("x_knots1",
+                                            mu=1, sigma=1, lower=x_knots2, 
+                                            shape = B.shape[1],
+                                            )
+                x_knots0 = pm.TruncatedNormal("x_knots0",
+                                            mu=1, sigma=1, lower=x_knots1, 
                                             shape = B.shape[1],
                                             )
 
                 # Single global scaling factor
                 x_global = pm.TruncatedNormal("x_global", mu=100., sigma=100., lower=0.)
 
-                x_global_monthly = pm.Deterministic("x_global_monthly", x_global * \
-                                                    pm.math.dot(B, x_knots))
+                # x_global_monthly = pm.Deterministic("x_global_monthly", x_global * \
+                #                                     pm.math.dot(B, x_knots))
 
-            x_boxes = at.stack([at.repeat(x_box0, nyears*12/lat_grad_n) * x_global_monthly,
-                                at.repeat(x_box1, nyears*12/lat_grad_n) * x_global_monthly,
-                                at.repeat(x_box2, nyears*12/lat_grad_n) * x_global_monthly,
-                                at.repeat(x_box3, nyears*12/lat_grad_n) * x_global_monthly], axis=1)
+            # x_boxes = at.stack([at.repeat(x_box0, nyears*12/lat_grad_n) * x_global_monthly,
+            #                     at.repeat(x_box1, nyears*12/lat_grad_n) * x_global_monthly,
+            #                     at.repeat(x_box2, nyears*12/lat_grad_n) * x_global_monthly,
+            #                     at.repeat(x_box3, nyears*12/lat_grad_n) * x_global_monthly], axis=1)
+
+            x_boxes = pm.Deterministic("x_boxes", x_global * at.stack([pm.math.dot(B, x_knots0),
+                                                                        pm.math.dot(B, x_knots1),
+                                                                        pm.math.dot(B, x_knots2),
+                                                                        pm.math.dot(B, x_knots3)], axis=1
+                                                                        ))
 
             x_emissions = pm.Deterministic("x_emissions", at.flatten(x_boxes))
 
@@ -632,8 +650,8 @@ class Inverse_method:
 
             #prior = pm.sample_prior_predictive(samples=10, model=model)
 
-            #trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(draws=2000, tune=500, 
+            # trace = pm.sample(return_inferencedata=True)
+            trace = pm.sample(draws=500, tune=100, 
                             return_inferencedata=True,
                             step=pm.Metropolis())
 
