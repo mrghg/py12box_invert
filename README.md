@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/358208089.svg)](https://zenodo.org/badge/latestdoi/358208089)
+
 # AGAGE 12-box model inversion
 
 This package is under development. 
