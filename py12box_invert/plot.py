@@ -28,8 +28,8 @@ def plot_mf(inv):
             data={"Date": dec_convert(inv.mf[0]),
                   "Box": "global",
                   "Obs": inv.mf[1].mean(axis=1),
-                  "Obs_uncertainty": inv.mf[2].mean(axis=1),
-                  "Model": inv.mf_model[1].mean(axis=1)}
+                  "Obs_uncertainty": np.sqrt(((inv.mf[2])**2).sum(axis=1)) / 4,
+                  "Model": inv.mf_model[1][:,:4].mean(axis=1)}
                   )
 
     data = pd.concat([pd.DataFrame(
@@ -73,7 +73,7 @@ def plot_mf(inv):
     obs_global = base_global.mark_point(filled=True, size=5, color="black").encode(
             x=alt.X("Date:T"),
             y=alt.Y("Obs:Q"),
-            tooltip=["Date", "Obs"]
+            tooltip=["Box", "Date", "Obs"]
             )
 
 
@@ -103,7 +103,7 @@ def plot_mf(inv):
         opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
     )
 
-    mod_plot_global = base_global.mark_line(strokeWidth=2).encode(
+    mod_plot_global = base_global.mark_line(strokeWidth=2, color="black").encode(
         x="Date:T",
         y=alt.Y("Model:Q", title="")
     )
