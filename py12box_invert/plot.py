@@ -24,13 +24,21 @@ def plot_mf(inv):
 
     selection = alt.selection_multi(fields=['Box'], bind='legend')
 
+    data_global = pd.DataFrame(
+            data={"Date": dec_convert(inv.mf[0]),
+                  "Box": "global",
+                  "Obs": inv.mf[1].mean(axis=1),
+                  "Obs_uncertainty": np.sqrt(((inv.mf[2])**2).sum(axis=1)) / 4,
+                  "Model": inv.mf_model[1][:,:4].mean(axis=1)}
+                  )
+
     data = pd.concat([pd.DataFrame(
             data={"Date": dec_convert(inv.mf[0]),
                 "Box": box_name[bi],
                 "Obs": inv.mf[1][:, bi],
                 "Obs_uncertainty": inv.mf[2][:, bi],
                 "Model": inv.mf_model[1][:, bi]}
-            ) for bi in range(4)])
+            ) for bi in range(4)])# + [data_global])
 
     xmin=data[np.isfinite(data["Obs"])]["Date"].min()
     xmax=data[np.isfinite(data["Obs"])]["Date"].max()
@@ -39,6 +47,11 @@ def plot_mf(inv):
 
     # Calculate some y-ranges for the error bars
     base = alt.Chart(data).transform_calculate(
+        ymin="datum.Obs-datum.Obs_uncertainty",
+        ymax="datum.Obs+datum.Obs_uncertainty"
+    )
+
+    base_global = alt.Chart(data_global).transform_calculate(
         ymin="datum.Obs-datum.Obs_uncertainty",
         ymax="datum.Obs+datum.Obs_uncertainty"
     )
@@ -57,6 +70,13 @@ def plot_mf(inv):
             tooltip=["Box", "Date", "Obs"]
     )
 
+    obs_global = base_global.mark_point(filled=True, size=5, color="black").encode(
+            x=alt.X("Date:T"),
+            y=alt.Y("Obs:Q"),
+            tooltip=["Box", "Date", "Obs"]
+            )
+
+
     # Add error bars
     error_bars = base.mark_errorbar().encode(
             x="Date:T",
@@ -67,6 +87,13 @@ def plot_mf(inv):
             opacity=alt.condition(selection, alt.value(0.8), alt.value(0.1))
     )
 
+    error_bars_global = base_global.mark_errorbar(color="black").encode(
+            x="Date:T",
+            y=alt.Y("ymin:Q", title=""),
+            y2="ymax:Q"
+    )
+
+
     # Model
     mod_plot = base.mark_line(strokeWidth=2).encode(
         x="Date:T",
@@ -76,7 +103,13 @@ def plot_mf(inv):
         opacity=alt.condition(selection, alt.value(1), alt.value(0.1))
     )
 
-    mf_upper = alt.layer(obs_plot, error_bars, mod_plot).properties(
+    mod_plot_global = base_global.mark_line(strokeWidth=2, color="black").encode(
+        x="Date:T",
+        y=alt.Y("Model:Q", title="")
+    )
+
+
+    mf_upper = alt.layer(obs_plot, obs_global, error_bars, error_bars_global, mod_plot, mod_plot_global).properties(
             height=250,
             width="container"
             ).interactive()
