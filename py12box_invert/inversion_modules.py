@@ -209,7 +209,7 @@ class Inverse_method:
         # Rerun forward model with optimized emissions
         self.mod.emissions = emissions.copy()
         if from_zero:
-            self.mod.ic[:] = self.mat.x_hat[0]
+            self.mod.ic[:] = self.mod_prior.ic * self.mat.x_hat[0]
         self.mod.run(verbose=False)
 
         # Check that mole fraction agrees with sensitivity*emissions
@@ -600,8 +600,8 @@ class Inverse_method:
             #x_emissions = pm.Deterministic("x_emissions", at.flatten(x_boxes_monthly))
 
             x_ic = pm.Normal("x_ic",
-                        mu=self.mod_prior.ic[0],
-                        sigma=self.mod_prior.ic[0]*0.1,
+                        mu=1.,
+                        sigma=0.1,
                         shape=(1,)) # TODO: currently hard-wired 10% uncertainty
 
             x = pm.Deterministic("x", at.concatenate([x_ic, at.flatten(x_boxes_monthly)]))
@@ -629,7 +629,7 @@ class Inverse_method:
             #prior = pm.sample_prior_predictive(samples=10, model=model)
 
             # trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(draws=1000, tune=200, 
+            trace = pm.sample(draws=200, tune=100, 
                             return_inferencedata=True,
                             step=pm.Metropolis())
 

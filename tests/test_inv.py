@@ -74,32 +74,39 @@ def test_sensitivity_from_zero():
     inv.mod.run()
     inv.mod_prior = Store_model(inv.mod)
 
-    inv.run_sensitivity(freq="yearly", from_zero=True)
+    inv.run_sensitivity(freq="yearly")
+
+    inv.run_initial_conditions()
+
+    inv.run_sensitivity_ic()
 
     # Check there are the right number of sensitivity elements (i.e. nyears + 1ic)
     assert inv.sensitivity.sensitivity.shape[1] == (int(inv.mod.emissions.shape[0]/12*4) + 1)
 
-    # Some arbitrary model run from uniform IC
-    mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = model(
-                    np.ones(12)*200.,
-                    np.ones((120, 4))*100.,
-                    inv.mod.mol_mass,
-                    inv.mod.lifetime,
-                    inv.mod.F,
-                    inv.mod.temperature,
-                    inv.mod.oh,
-                    inv.mod.cl,
-                    arr_oh=np.array([inv.mod.oh_a, inv.mod.oh_er]),
-                    mass=inv.mod.mass)
+    for ic_scaling in [0.9, 1., 1.1]:
 
-    # Calculate the same model run using sensitivity matrix
-    x_test = np.zeros(inv.sensitivity.sensitivity.shape[1])
-    x_test[0]=200.
-    x_test[1:] = 100.
-    mf_test = (inv.sensitivity.sensitivity @ x_test).reshape((120, 4))
+        # Some arbitrary model run from uniform IC
+        mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = model(
+                        inv.mod_prior.ic*ic_scaling,
+                        np.ones((120, 4))*100.,
+                        inv.mod.mol_mass,
+                        inv.mod.lifetime,
+                        inv.mod.F,
+                        inv.mod.temperature,
+                        inv.mod.oh,
+                        inv.mod.cl,
+                        arr_oh=np.array([inv.mod.oh_a, inv.mod.oh_er]),
+                        mass=inv.mod.mass)
 
-    # Test if the two are the same
-    assert np.allclose(mf_test, mf_out[:,:4])
+        # Calculate the same model run using sensitivity matrix
+        x_test = np.zeros(inv.sensitivity.sensitivity.shape[1])
+        x_test[0]=ic_scaling
+        x_test[1:] = 100.
+        mf_test = (inv.sensitivity.sensitivity @ x_test).reshape((120, 4))
+
+        # Test if the two are the same
+        assert np.allclose(mf_test, mf_out[:,:4])
+
 
 def test_matrices():
 

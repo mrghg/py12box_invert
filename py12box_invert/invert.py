@@ -150,24 +150,26 @@ class Invert(Inverse_method):
         # Calculate sensitivity
         self.run_sensitivity(freq=sensitivity_freq,
                                 nthreads=n_threads,
-                                from_zero=sensitivity_from_zero)
+                                from_zero=False)
 
-        if sensitivity_from_zero:
-            # Set all initial conditions to a constant value. This value will be used as the prior IC later
-            print("Setting initial conditions to constant value")
-            self.run_initial_conditions(from_zero=True)
+        # if sensitivity_from_zero:
+        #     # Set all initial conditions to a constant value. This value will be used as the prior IC later
+        #     print("Setting initial conditions to constant value") #TODO: Change this comment to reflect scaling?
+        #     self.run_initial_conditions(from_zero=True)
 
-        else:
-            # To spin up and estimate initial conditions, iterate between the two a few times
-            print(f"Spinning up for {spinup_years} years and estimating initial conditions...")
-            for i in range(3):
-                # Spinup, if needed
-                if spinup_years > 0:
-                    self.run_spinup(nyears=int(spinup_years/3))
+        # else:
+        # To spin up and estimate initial conditions, iterate between the two a few times
+        print(f"Spinning up for {spinup_years} years and estimating initial conditions...")
+        for i in range(3):
+            # Spinup, if needed
+            if spinup_years > 0:
+                self.run_spinup(nyears=int(spinup_years/3))
 
-                # Calculate initial conditions.
-                # This needs to happen after the sensitivity calculation
-                self.run_initial_conditions()
+            # Calculate initial conditions.
+            # This needs to happen after the sensitivity calculation
+            self.run_initial_conditions()
+
+        self.run_sensitivity_ic()
 
         print("... done")
 
@@ -391,21 +393,21 @@ class Invert(Inverse_method):
                     self.sensitivity.sensitivity[:, thread*nsens_section*4 : thread*nsens_section*4 + nsens_out[thread]*4] = \
                         results[thread].get()
 
-        if from_zero:
-
-            # Run model from 1ppt above initial value
-            mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
-                    core.model(self.mod_prior.ic+10., self.mod_prior.emissions, self.mod.mol_mass, self.mod.lifetime,
-                                self.mod.F, self.mod.temperature, self.mod.oh, self.mod.cl,
-                                arr_oh=np.array([self.mod.oh_a, self.mod.oh_er]),
-                                mass=self.mod.mass)
-
-            ic_sensitivity = (mf_out[:,:4].flatten() - self.mod_prior.mf[:,:4].flatten()) / 10.
-
-            self.sensitivity.sensitivity = np.concatenate([np.expand_dims(ic_sensitivity, axis=1),
-                                            self.sensitivity.sensitivity], axis=1)
-
         print("... done")
+
+
+    def run_sensitivity_ic(self):
+
+        mf_out, mf_restart, burden_out, q_out, losses, global_lifetimes = \
+                core.model(self.mod_prior.ic, self.mod_prior.emissions*0., self.mod.mol_mass, self.mod.lifetime,
+                            self.mod.F, self.mod.temperature, self.mod.oh, self.mod.cl,
+                            arr_oh=np.array([self.mod.oh_a, self.mod.oh_er]),
+                            mass=self.mod.mass)
+
+        ic_sensitivity = mf_out[:,:4].flatten()
+
+        self.sensitivity.sensitivity = np.concatenate([np.expand_dims(ic_sensitivity, axis=1),
+                                        self.sensitivity.sensitivity], axis=1)
 
 
     def create_matrices(self, sigma_P=None, from_zero=False):
@@ -456,12 +458,11 @@ class Invert(Inverse_method):
             #TODO: These values probably don't make any physical sense yet. Need to improve this
             # Store 1/prior uncertainty covariance
             # IC uncertainty is 1/10th of the ic value
-            self.mat.P_inv = np.linalg.inv(np.diag(np.concatenate([self.mod_prior.ic[0:1]/10.,
-                                                                    P_diag])**2))
+            self.mat.P_inv = np.linalg.inv(np.diag(np.concatenate([np.ones(1)*0.1, P_diag])**2))
     
             # Prior parameters vector
             self.mat.x_a = np.zeros(nx)
-            self.mat.x_a[0] = self.mod_prior.ic[0]
+            self.mat.x_a[0] = 1.
         
         else:
             # Store 1/prior uncertainty covariance
