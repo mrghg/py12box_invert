@@ -108,10 +108,8 @@ def plot_mf(inv):
         y=alt.Y("Model:Q", title="")
     )
 
-
     mf_upper = alt.layer(obs_plot, obs_global, error_bars, error_bars_global, mod_plot, mod_plot_global).properties(
-            height=250,
-            width="container"
+            height=400
             ).interactive()
 
     return mf_upper.add_selection(selection)
@@ -192,8 +190,7 @@ def plot_gr(inv):
             )
 
     gr_lower = alt.layer(gr_plot, gr_global, gr_error_bars).properties(
-        height=250,
-        width="container"
+        height=400
         ).interactive()
 
     return gr_lower.add_selection(
@@ -246,8 +243,7 @@ def plot_emissions(inv):
     )
 
     return (emissions_uncertainty + emissions).properties(
-                width="container",
-                height=250
+                height=400
                 ).interactive()
 
 
@@ -303,9 +299,7 @@ def plot_semihemi_emissions(inv):
     )
 
     return (emissions + emissions_uncertainty).properties(
-                #width=400, height=400
-                width="container",
-                height=250
+                height=400
                 ).interactive().add_selection(selection)
 
 
@@ -350,6 +344,5 @@ def plot_residuals(inv):
     )
 
     return p.properties(
-        width="container",
-        height=250
+        height=400
     ).interactive().add_selection(selection)
