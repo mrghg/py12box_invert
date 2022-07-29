@@ -540,8 +540,9 @@ class Inverse_method:
                 np.repeat(np.expand_dims(self.mod_prior.time, axis=1), 4, axis=1)
         knots_list = np.quantile(finite_times[(finite_times > 0.) * \
                 (finite_times > self.obs.time[0] + spinup)], np.linspace(0, 1, num_knots))
-        # prepend one knot at start year
-        knots_list = np.insert(knots_list, 0, self.obs.time[0])
+        # prepend knot at start year
+        #knots_list = np.insert(knots_list, 0, self.obs.time[0])
+        knots_list = np.concatenate([np.array([self.obs.time[0], self.obs.time[0] + 5.]), knots_list])
         print(f"{num_knots} knots in time at: {knots_list}")
 
         # Lower frequency knots for latitudinal gradient
@@ -629,7 +630,7 @@ class Inverse_method:
             #prior = pm.sample_prior_predictive(samples=10, model=model)
 
             # trace = pm.sample(return_inferencedata=True)
-            trace = pm.sample(draws=200, tune=100, 
+            trace = pm.sample(draws=20000, tune=5000, 
                             return_inferencedata=True,
                             step=pm.Metropolis())
 
