@@ -652,16 +652,12 @@ class Inverse_method:
                                         sigma=np.mean(np.sqrt(np.diag(self.mat.R))),
                                         shape=len(site_instrument))
             
-            y_model_error = at.zeros_like(self.mat.y)
+            y_model_error = np.zeros_like(self.mat.y)
             for i, si in enumerate(site_instrument):
                 indices = np.asarray(self.mat.y_site_instrument == si).nonzero()
-                # needed or you get errors when you use NUTS and have only one observation for a combination of sites
-                if len(indices) == 1:
-                    y_model_error = at.set_subtensor(y_model_error[indices[0][0]], model_error[i])
-                else:
-                    y_model_error = at.set_subtensor(y_model_error[indices], model_error[i])
+                y_model_error[indices] = model_error[i].eval()
 
-            y_sigma = pm.Deterministic("y_sigma", np.sqrt(np.diag(self.mat.R)) + y_model_error)
+            y_sigma = pm.Deterministic("y_sigma", np.sqrt(np.diag(self.mat.R)) + at.as_tensor(y_model_error))
 
             y_observed = pm.Normal(
                 "y",

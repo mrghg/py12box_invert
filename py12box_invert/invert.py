@@ -275,7 +275,7 @@ class Invert(Inverse_method):
         if from_zero:
             # set all initial conditions to the same value, equal to surface mean
             self.mod.ic += ic_offset - mf_offset
-            self.mod.ic[:] = np.mean(self.mod.ic[0:3])
+            self.mod.ic[:] = np.mean(self.mod.ic[0:4])
 
         else:
         
