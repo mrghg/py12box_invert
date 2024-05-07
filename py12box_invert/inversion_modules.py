@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import minimize
 import pymc as pm
 # import pymc.sampling_jax
-import aesara.tensor as at
+import pytensor.tensor as pt
 from patsy import dmatrix
 
 from py12box_invert.utils import Store_model
@@ -608,10 +608,10 @@ class Inverse_method:
                 L2 = pm.Beta("L2", alpha=2, beta=2, shape=B_lat.shape[1])
 
                 # Rescale so they sum to one
-                B_lat_coef_box1= pm.Deterministic("L1_norm", (at.ones(B_lat.shape[1]) - B_lat_coef_box0) * L1)
-                B_lat_coef_box2 = pm.Deterministic("L2_norm", (at.ones(B_lat.shape[1]) - B_lat_coef_box0 - B_lat_coef_box1) * L2)
+                B_lat_coef_box1= pm.Deterministic("L1_norm", (pt.ones(B_lat.shape[1]) - B_lat_coef_box0) * L1)
+                B_lat_coef_box2 = pm.Deterministic("L2_norm", (pt.ones(B_lat.shape[1]) - B_lat_coef_box0 - B_lat_coef_box1) * L2)
                 # Because they sum to one, we know what the final coef is
-                B_lat_coef_box3 = pm.Deterministic("L3", (at.ones(B_lat.shape[1]) - B_lat_coef_box0 - B_lat_coef_box1 - B_lat_coef_box2))
+                B_lat_coef_box3 = pm.Deterministic("L3", (pt.ones(B_lat.shape[1]) - B_lat_coef_box0 - B_lat_coef_box1 - B_lat_coef_box2))
 
 
             # Get scaling factor for each box
@@ -633,7 +633,7 @@ class Inverse_method:
 
             x_global_monthly = pm.math.dot(B, x_knots)
 
-            x_boxes_monthly = at.stack([x_box0 * x_global_monthly,
+            x_boxes_monthly = pt.stack([x_box0 * x_global_monthly,
                                         x_box1 * x_global_monthly,
                                         x_box2 * x_global_monthly,
                                         x_box3 * x_global_monthly], axis=1)
@@ -645,7 +645,7 @@ class Inverse_method:
                         sigma=0.1,
                         shape=(1,)) # TODO: currently hard-wired 10% uncertainty
 
-            x = pm.Deterministic("x", at.concatenate([x_ic, at.flatten(x_boxes_monthly)]))
+            x = pm.Deterministic("x", pt.concatenate([x_ic, pt.flatten(x_boxes_monthly)]))
 
             # Different model uncertainty for each site and instrument
             site_instrument = np.unique(self.mat.y_site_instrument)
@@ -653,14 +653,14 @@ class Inverse_method:
                                         sigma=np.mean(np.sqrt(np.diag(self.mat.R))),
                                         shape=len(site_instrument))
             
-            y_model_error = at.zeros_like(self.mat.y)
+            y_model_error = pt.zeros_like(self.mat.y)
             for i, si in enumerate(site_instrument):
                 indices = np.asarray(self.mat.y_site_instrument == si).nonzero()
                 # needed or you get errors when you use NUTS and have only one observation for a combination of sites
                 if len(indices) == 1:
-                    y_model_error = at.set_subtensor(y_model_error[indices[0][0]], model_error[i])
+                    y_model_error = pt.set_subtensor(y_model_error[indices[0][0]], model_error[i])
                 else:
-                    y_model_error = at.set_subtensor(y_model_error[indices], model_error[i])
+                    y_model_error = pt.set_subtensor(y_model_error[indices], model_error[i])
 
             y_sigma = pm.Deterministic("y_sigma", np.sqrt(np.diag(self.mat.R)) + y_model_error)
 
@@ -675,7 +675,7 @@ class Inverse_method:
 
             # NUTS is much faster than MH, jax was about the same speed as pymc NUTS
             # trace = pm.sampling_jax.sample_numpyro_nuts(chains=2)
-            trace = pm.sample(draws=5000, tune=5000, return_inferencedata=True, step=pm.NUTS())
+            trace = pm.sample(draws=500, tune=500, return_inferencedata=True, step=pm.NUTS())
             # trace = pm.sample(draws=100000, tune=25000, 
             #                 return_inferencedata=True,
             #                 step=pm.Metropolis())
