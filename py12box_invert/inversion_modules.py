@@ -506,7 +506,8 @@ class Inverse_method:
         return np.dstack(emissions_ensemble), np.dstack(mf_ensemble)
 
 
-    def mcmc_spline(self, knots = None, knots_lat = None, lat_ordered = False):
+    def mcmc_spline(self, knots = None, knots_lat = None,
+                    lat_model = "uniform"):
         '''Must be run with sensitivity_from_zero
         '''
 
@@ -582,7 +583,7 @@ class Inverse_method:
 
         # Set up pymc model
         with pm.Model() as model:
-            if lat_ordered:
+            if lat_model == "logistic":
                 # Logistic function parameters (L is normalisation so that sum from 0 -> 3 is 1)
                 k = pm.Uniform("k", lower=0.1, upper=3., shape=B_lat.shape[1])
                 x0 = pm.Uniform("x0", lower=0., upper=10., shape=B_lat.shape[1])
@@ -597,7 +598,13 @@ class Inverse_method:
                 B_lat_coef_box1 = logistic(L, k, x0, 2)
                 B_lat_coef_box0 = logistic(L, k, x0, 3)
 
-            else:
+                # Get scaling factor for each box
+                x_box3 = pm.Deterministic("x_box3", pm.math.dot(B_lat, B_lat_coef_box3))
+                x_box2 = pm.Deterministic("x_box2", pm.math.dot(B_lat, B_lat_coef_box2))
+                x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, B_lat_coef_box1))
+                x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, B_lat_coef_box0))
+
+            elif lat_model == "uniform":
                 # Want B_lat_coef_boxes to sum to 1, but not be in a set order.
                 # Because they sum to one, don't need to have final coef as a parameter.
                 # First thought was Uniform distribution from 0 to 1 and rescale to sum to 1,
@@ -612,13 +619,28 @@ class Inverse_method:
                 B_lat_coef_box2 = pm.Deterministic("L2_norm", (pt.ones(B_lat.shape[1]) - B_lat_coef_box0 - B_lat_coef_box1) * L2)
                 # Because they sum to one, we know what the final coef is
                 B_lat_coef_box3 = pm.Deterministic("L3", (pt.ones(B_lat.shape[1]) - B_lat_coef_box0 - B_lat_coef_box1 - B_lat_coef_box2))
+            
+                # Get scaling factor for each box
+                x_box3 = pm.Deterministic("x_box3", pm.math.dot(B_lat, B_lat_coef_box3))
+                x_box2 = pm.Deterministic("x_box2", pm.math.dot(B_lat, B_lat_coef_box2))
+                x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, B_lat_coef_box1))
+                x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, B_lat_coef_box0))
+            
+            elif lat_model == "beta22":
 
+                b_box3 = pm.Beta("b_box3", alpha=2, beta=2, shape=B_lat.shape[1])
+                b_box2 = pm.Beta("b_box2", alpha=2, beta=2, shape=B_lat.shape[1])
+                b_box1 = pm.Beta("b_box1", alpha=2, beta=2, shape=B_lat.shape[1])
+                b_box0 = pm.Beta("b_box0", alpha=2, beta=2, shape=B_lat.shape[1])
 
-            # Get scaling factor for each box
-            x_box3 = pm.Deterministic("x_box3", pm.math.dot(B_lat, B_lat_coef_box3))
-            x_box2 = pm.Deterministic("x_box2", pm.math.dot(B_lat, B_lat_coef_box2))
-            x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, B_lat_coef_box1))
-            x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, B_lat_coef_box0))
+                x_box3 = pm.Deterministic("x_box3", pm.math.dot(B_lat, b_box3))
+                x_box2 = pm.Deterministic("x_box2", pm.math.dot(B_lat, b_box2))
+                x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, b_box1))
+                x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, b_box0))
+
+            else:
+                raise Exception("Latitudinal model not recognised")
+
 
             # Single global scaling factor
             #TODO: estimate mu (== sigma) from a 1-box model
@@ -675,8 +697,10 @@ class Inverse_method:
 
             # NUTS is much faster than MH, jax was about the same speed as pymc NUTS
             # trace = pm.sampling_jax.sample_numpyro_nuts(chains=2)
-            trace = pm.sample(draws=500, tune=500, return_inferencedata=True, step=pm.NUTS())
-            # trace = pm.sample(draws=100000, tune=25000, 
+            #trace = pm.sample(draws=100, tune=100, return_inferencedata=True, step=pm.NUTS())
+            trace = pm.sample(draws=100, tune=500,
+                              nuts_sampler = "numpyro", return_inferencedata=True)
+            # trace = pm.sample(draws=100, tune=500, 
             #                 return_inferencedata=True,
             #                 step=pm.Metropolis())
 
