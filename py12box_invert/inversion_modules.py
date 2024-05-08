@@ -539,6 +539,7 @@ class Inverse_method:
         if nyears < 10:
             raise Exception("Currently, recommend at least 10 years for spinup")
 
+        # TODO: How does this relate to the start time used to calculate the sensitivity? Possibly inconsistent?
         spinup = 10 # years
 
         # Work out number of knots for global emissions
@@ -560,6 +561,8 @@ class Inverse_method:
                 (finite_times > self.obs.time[0] + spinup)], np.linspace(0, 1, num_knots))
         # prepend knot at start year
         #knots_list = np.insert(knots_list, 0, self.obs.time[0])
+
+        #TODO: what is this 5. for???
         knots_list = np.concatenate([np.array([self.obs.time[0], self.obs.time[0] + 5.]), knots_list])
         print(f"{num_knots} knots in time at: {knots_list}")
 
@@ -766,7 +769,7 @@ class Inverse_method:
             model_error = pm.HalfNormal("model_error",
                                         sigma=np.mean(np.sqrt(np.diag(self.mat.R))),
                                         shape=len(site_instrument))
-            
+
             y_model_error = pt.zeros_like(self.mat.y)
             for i, si in enumerate(site_instrument):
                 indices = np.asarray(self.mat.y_site_instrument == si).nonzero()
@@ -790,11 +793,11 @@ class Inverse_method:
             # NUTS is much faster than MH, jax was about the same speed as pymc NUTS
             # trace = pm.sampling_jax.sample_numpyro_nuts(chains=2)
             #trace = pm.sample(draws=100, tune=100, return_inferencedata=True, step=pm.NUTS())
-            trace = pm.sample(draws=100, tune=500,
-                              nuts_sampler = "numpyro", return_inferencedata=True)
-            # trace = pm.sample(draws=100, tune=500, 
-            #                 return_inferencedata=True,
-            #                 step=pm.Metropolis())
+            # trace = pm.sample(draws=100, tune=500,
+            #                   nuts_sampler = "pymc", return_inferencedata=True)
+            trace = pm.sample(draws=5000, tune=5000, 
+                            return_inferencedata=True,
+                            step=pm.Metropolis())
 
         self.mat.trace = trace.copy()
         #self.mat.prior = prior.copy()
