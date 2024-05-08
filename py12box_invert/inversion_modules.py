@@ -507,7 +507,7 @@ class Inverse_method:
 
 
     def mcmc_spline(self, knots = None, knots_lat = None,
-                    lat_model = "uniform"):
+                    lat_model = "fixed"):
         '''Must be run with sensitivity_from_zero
         '''
 
@@ -583,7 +583,18 @@ class Inverse_method:
 
         # Set up pymc model
         with pm.Model() as model:
+
+            # Global emissions
+            # Single global scaling factor
+            #TODO: estimate mu (== sigma) from a 1-box model
+            # at the minute, just set the prior emissions to a constant value
+            prior_mu = self.mod_prior.emissions.sum(axis=1).mean()
+            # experimenting with fitting a more informative prior
+            # prior_mu = bspline_regression(B, self.mod_prior.emissions.sum(axis=1))
+
+            # Latitudinal gradient
             if lat_model == "logistic":
+
                 # Logistic function parameters (L is normalisation so that sum from 0 -> 3 is 1)
                 k = pm.Uniform("k", lower=0.1, upper=3., shape=B_lat.shape[1])
                 x0 = pm.Uniform("x0", lower=0., upper=10., shape=B_lat.shape[1])
@@ -604,6 +615,22 @@ class Inverse_method:
                 x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, B_lat_coef_box1))
                 x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, B_lat_coef_box0))
 
+                # Global emissions (TODO: Move this to a function)
+                #___________________________________
+                x_knots = pm.Normal("x_knots",
+                    mu = prior_mu,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+
+                x_global_monthly = pm.math.dot(B, x_knots)
+
+                x_boxes_monthly = pt.stack([x_box0 * x_global_monthly,
+                                            x_box1 * x_global_monthly,
+                                            x_box2 * x_global_monthly,
+                                            x_box3 * x_global_monthly], axis=1)
+                #___________________________________
+                
             elif lat_model == "uniform":
                 # Want B_lat_coef_boxes to sum to 1, but not be in a set order.
                 # Because they sum to one, don't need to have final coef as a parameter.
@@ -625,7 +652,23 @@ class Inverse_method:
                 x_box2 = pm.Deterministic("x_box2", pm.math.dot(B_lat, B_lat_coef_box2))
                 x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, B_lat_coef_box1))
                 x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, B_lat_coef_box0))
-            
+
+                # Global emissions (TODO: Move this to a function)
+                #___________________________________
+                x_knots = pm.Normal("x_knots",
+                    mu = prior_mu,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+
+                x_global_monthly = pm.math.dot(B, x_knots)
+
+                x_boxes_monthly = pt.stack([x_box0 * x_global_monthly,
+                                            x_box1 * x_global_monthly,
+                                            x_box2 * x_global_monthly,
+                                            x_box3 * x_global_monthly], axis=1)
+                #___________________________________
+
             elif lat_model == "beta22":
 
                 b_box3 = pm.Beta("b_box3", alpha=2, beta=2, shape=B_lat.shape[1])
@@ -638,27 +681,76 @@ class Inverse_method:
                 x_box1 = pm.Deterministic("x_box1", pm.math.dot(B_lat, b_box1))
                 x_box0 = pm.Deterministic("x_box0", pm.math.dot(B_lat, b_box0))
 
+                # Global emissions (TODO: Move this to a function)
+                #___________________________________
+                x_knots = pm.Normal("x_knots",
+                    mu = prior_mu,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+
+                x_global_monthly = pm.math.dot(B, x_knots)
+
+                x_boxes_monthly = pt.stack([x_box0 * x_global_monthly,
+                                            x_box1 * x_global_monthly,
+                                            x_box2 * x_global_monthly,
+                                            x_box3 * x_global_monthly], axis=1)
+                #___________________________________
+
+            elif lat_model == "fixed":
+
+                # Global emissions (TODO: Move this to a function)
+                #___________________________________
+                x_knots = pm.Normal("x_knots",
+                    mu = prior_mu,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+
+                x_global_monthly = pm.math.dot(B, x_knots)
+
+                x_boxes_monthly = pt.stack([0.8 * x_global_monthly,
+                                            0.1 * x_global_monthly,
+                                            0.07 * x_global_monthly,
+                                            0.03 * x_global_monthly], axis=1)
+                #___________________________________                
+
+            elif lat_model == "independent":
+
+                # Global emissions (TODO: Move this to a function)
+                #___________________________________
+                x_knots0 = pm.Normal("x_knots0",
+                    mu = prior_mu/4,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+                x_knots1 = pm.Normal("x_knots1",
+                    mu = prior_mu/4,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+                x_knots2 = pm.Normal("x_knots2",
+                    mu = prior_mu/4,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+                x_knots3 = pm.Normal("x_knots3",
+                    mu = prior_mu/4,
+                    sigma = prior_mu,
+                    shape = B.shape[1],
+                    )
+
+                x_box0 = pm.math.dot(B, x_knots0)
+                x_box1 = pm.math.dot(B, x_knots1)
+                x_box2 = pm.math.dot(B, x_knots2)
+                x_box3 = pm.math.dot(B, x_knots3)
+
+                x_boxes_monthly = pt.stack([x_box0, x_box1, x_box2, x_box3], axis=1)
+                #___________________________________
+
             else:
                 raise Exception("Latitudinal model not recognised")
 
-
-            # Single global scaling factor
-            #TODO: estimate mu (== sigma) from a 1-box model
-            # at the minute, just set the prior emissions to a constant value
-            prior_mu = self.mod_prior.emissions.sum(axis=1).mean()
-            # experimenting with fitting a more informative prior
-            # prior_mu = bspline_regression(B, self.mod_prior.emissions.sum(axis=1))
-            x_knots = pm.Normal("x_knots",
-                                mu=prior_mu, sigma=prior_mu,
-                                shape = B.shape[1],
-                                )
-
-            x_global_monthly = pm.math.dot(B, x_knots)
-
-            x_boxes_monthly = pt.stack([x_box0 * x_global_monthly,
-                                        x_box1 * x_global_monthly,
-                                        x_box2 * x_global_monthly,
-                                        x_box3 * x_global_monthly], axis=1)
 
             #x_emissions = pm.Deterministic("x_emissions", at.flatten(x_boxes_monthly))
 
