@@ -272,16 +272,18 @@ class Inverse_method:
     def rigby14(self):
         """Emissions growth-constrainted method of Rigby et al., 2011 and 2014
         """
-        
+
         # Difference operator
         D = difference_operator(len(self.mat.x_a), int(12/self.sensitivity.freq_months))
 
         H = self.mat.H.copy()
-
-        R_inv = np.linalg.inv(self.mat.R)
+        # Numpy can struggle is diagonal is very small
+        if np.all(self.mat.R == np.diag(np.diagonal(self.mat.R))):
+            R_inv = np.diag(1./np.diag(self.mat.R))
+        else:
+            R_inv = np.linalg.inv(self.mat.R)
         self.mat.P_hat = np.linalg.inv(H.T @ R_inv @ H + D.T @ self.mat.P_inv @ D)
         self.mat.x_hat = self.mat.P_hat @ (H.T @ R_inv @ self.mat.y + D.T @ self.mat.P_inv @ self.mat.x_a)
-        
         
     def rigby14_posterior(self):
         """

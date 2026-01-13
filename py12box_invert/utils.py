@@ -91,7 +91,7 @@ def aggregate_outputs(time, mean, ensemble,
         meanshape[0] = int(meanshape[0]/12)
         meanshape[1] = 12
 
-    _time = np.reshape(_time, meanshape[:2])
+    _time = np.reshape(_time, meanshape[:2])    
     _mean = np.reshape(_mean, meanshape)
     _ensemble = np.reshape(_ensemble, enshape)
 
@@ -107,6 +107,10 @@ def aggregate_outputs(time, mean, ensemble,
     _time = _time.mean(axis=1)
     _mean = _mean.mean(axis=1)
     _ensemble = _ensemble.mean(axis=1)
+    if period == "annual-jan":
+        # Given that each month has a different number of days, we need to round to 1 Jan
+        _time =  np.round(_time, decimals=1)
+        print(_time)
 
     if "sigma" in uncertainty:
         _uncertainty = _ensemble.std(axis=-1)
