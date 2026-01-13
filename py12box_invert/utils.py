@@ -110,7 +110,6 @@ def aggregate_outputs(time, mean, ensemble,
     if period == "annual-jan":
         # Given that each month has a different number of days, we need to round to 1 Jan
         _time =  np.round(_time, decimals=1)
-        print(_time)
 
     if "sigma" in uncertainty:
         _uncertainty = _ensemble.std(axis=-1)
